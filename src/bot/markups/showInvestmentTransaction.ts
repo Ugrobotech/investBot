@@ -41,6 +41,15 @@ export const showUserTransactionDetails = async (data: any) => {
     keyboard: [
       [
         {
+          text: 'view Earnings',
+          callback_data: JSON.stringify({
+            command: '/viewEarnings',
+            language: 'english',
+          }),
+        },
+      ],
+      [
+        {
           text: '❌ Close',
           callback_data: JSON.stringify({
             command: '/close',
