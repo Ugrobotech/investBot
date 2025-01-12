@@ -52,8 +52,12 @@ export class BotService {
       await this.bot.sendChatAction(msg.chat.id, 'typing');
 
       const command = msg.text.trim();
+
       // regex for transaction hash
       const pattern = /^0x[a-fA-F0-9]{64}$/;
+      const urlRegex = /0x[a-fA-F0-9]{64}/;
+
+      const match = command.match(urlRegex);
 
       if (command.startsWith('/start')) {
         const username = `${msg.from.username}`;
@@ -105,6 +109,9 @@ export class BotService {
       } else if (pattern.test(command)) {
         await this.verifyPayment(msg.chat.id, command, msg.from.username);
         console.log('The text is in the correct format.');
+      } else if (match) {
+        await this.verifyPayment(msg.chat.id, match[0], msg.from.username);
+        console.log('Url hash detected.');
       }
     } catch (error) {
       console.error(error);
