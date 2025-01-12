@@ -669,7 +669,7 @@ export class BotService {
   calculateEarning = async () => {
     try {
       const referralBonusPercentage = 0.5; // 0.5% referral bonus
-      const earningBonusPercentage = 10; // 10% earning bonus
+      const earningBonusPercentage = 0.5; // 10% earning bonus
 
       // Fetch all users from the database
       const allUsers = await this.UserModel.find();
@@ -737,7 +737,7 @@ export class BotService {
     }
   };
 
-  @Cron('0 */2 * * *') //2hrs
+  @Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
