@@ -718,7 +718,7 @@ export class BotService {
     }
   };
 
-  @Cron('*/30 * * * * *') // Executes every 30 seconds
+  @Cron('0 */2 * * *') //2hrs
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
