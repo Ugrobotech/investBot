@@ -1,25 +1,44 @@
-export const showTransactionDetails = async (data: any) => {
-  const { amount, hash, chatId, username } = data;
+export const showAdminTransactionDetails = async (data: any) => {
+  const { amount, hash, username } = data;
 
   return {
     message: `<b>Investment Alert 🚨</b>\n<b>transaction hash:</b> <a href="https://etherscan.io/tx/${hash}">${hash}</a>\n\n<b>Details :</b>\n<b>User: </b>${username}\n<b>Amount Invested: </b>${amount} eth`,
     keyboard: [
+      // [
+      //   // {
+      //   //   text: '✅ Approve',
+      //   //   callback_data: JSON.stringify({
+      //   //     command: '/approve',
+      //   //     userChatId: `${chatId}`,
+      //   //   }),
+      //   // },
+      //   // {
+      //   //   text: '🚫 Reject',
+      //   //   callback_data: JSON.stringify({
+      //   //     command: '/reject',
+      //   //     userChatId: `${chatId}`,
+      //   //   }),
+      //   // },
+      // ],
       [
         {
-          text: '✅ Approve',
+          text: '❌ Close',
           callback_data: JSON.stringify({
-            command: '/approve',
-            userChatId: `${chatId}`,
+            command: '/close',
+            language: 'english',
           }),
         },
-        // {
-        //   text: '🚫 Reject',
-        //   callback_data: JSON.stringify({
-        //     command: '/reject',
-        //     userChatId: `${chatId}`,
-        //   }),
-        // },
       ],
+    ],
+  };
+};
+
+export const showUserTransactionDetails = async (data: any) => {
+  const { amount, hash } = data;
+
+  return {
+    message: `<b>Investment Alert 🚨</b>\n<b>transaction hash:</b> <a href="https://etherscan.io/tx/${hash}">${hash}</a>\n\n<b>Details :</b>\n<b>Amount Invested: </b>${amount} eth`,
+    keyboard: [
       [
         {
           text: '❌ Close',

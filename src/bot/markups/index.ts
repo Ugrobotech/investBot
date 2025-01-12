@@ -1,7 +1,10 @@
 import { welcomeMessageMarkup } from './welcome';
 import { menuMarkup } from './menu';
 import { investDetailsMarkup } from './invest';
-import { showTransactionDetails } from './showInvestmentTransaction';
+import {
+  showAdminTransactionDetails,
+  showUserTransactionDetails,
+} from './showInvestmentTransaction';
 import { showEarningDetails } from './viewEarning';
 import { walletDetailsMarkup } from './walletDetails';
 import { displayPrivateKeyMarkup } from './privateKey';
@@ -13,7 +16,8 @@ export {
   welcomeMessageMarkup,
   menuMarkup,
   investDetailsMarkup,
-  showTransactionDetails,
+  showAdminTransactionDetails,
+  showUserTransactionDetails,
   showEarningDetails,
   walletDetailsMarkup,
   displayPrivateKeyMarkup,

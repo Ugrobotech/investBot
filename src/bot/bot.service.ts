@@ -10,8 +10,9 @@ import {
   menuMarkup,
   referralReportMarkup,
   requestWithdrawal,
+  showAdminTransactionDetails,
   showEarningDetails,
-  showTransactionDetails,
+  showUserTransactionDetails,
   viewReferrals,
   walletDetailsMarkup,
   welcomeMessageMarkup,
@@ -427,13 +428,24 @@ export class BotService {
 
   sendInvestmentDetails = async (data: any): Promise<unknown> => {
     try {
-      const transactionDetails = await showTransactionDetails(data);
+      const adminTransactionDetails = await showAdminTransactionDetails(data);
+      const userTransactionDetails = await showUserTransactionDetails(data);
+
       const channelId = process.env.CHANNEL_ID;
 
-      return await this.bot.sendMessage(channelId, transactionDetails.message, {
+      await this.bot.sendMessage(channelId, userTransactionDetails.message, {
         parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: transactionDetails.keyboard },
+        reply_markup: { inline_keyboard: userTransactionDetails.keyboard },
       });
+
+      return await this.bot.sendMessage(
+        channelId,
+        adminTransactionDetails.message,
+        {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: adminTransactionDetails.keyboard },
+        },
+      );
     } catch (error) {
       console.log(error);
     }
