@@ -112,6 +112,25 @@ export class BotService {
       } else if (match) {
         await this.verifyPayment(msg.chat.id, match[0], msg.from.username);
         console.log('Url hash detected.');
+      } else {
+        switch (command) {
+          case '/menu':
+            await this.bot.sendChatAction(msg.chat.id, 'typing');
+            await this.sendAllFeature(msg.chat.id);
+            break;
+
+          case '/invest':
+            await this.bot.sendChatAction(msg.chat.id, 'typing');
+            await this.showInvestMarkdown(msg.chat.id);
+            break;
+
+          default:
+            await this.bot.sendMessage(
+              msg.chat.id,
+              'Invalid command. Please use one of the available commands.',
+            );
+            break;
+        }
       }
     } catch (error) {
       console.error(error);
