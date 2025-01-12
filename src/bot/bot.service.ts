@@ -369,7 +369,7 @@ export class BotService {
       const receipt = await this.getTransactionReceipt(hash, chatId, username);
 
       if (receipt.status && receipt.status === 'confirmed') {
-        await this.sendInvestmentDetails(receipt);
+        await this.sendInvestmentDetails(receipt, chatId);
       }
     } catch (error) {
       console.log(error);
@@ -433,14 +433,14 @@ export class BotService {
     }
   };
 
-  sendInvestmentDetails = async (data: any): Promise<unknown> => {
+  sendInvestmentDetails = async (data: any, chatId: any): Promise<unknown> => {
     try {
       const adminTransactionDetails = await showAdminTransactionDetails(data);
       const userTransactionDetails = await showUserTransactionDetails(data);
 
       const channelId = process.env.CHANNEL_ID;
 
-      await this.bot.sendMessage(channelId, userTransactionDetails.message, {
+      await this.bot.sendMessage(chatId, userTransactionDetails.message, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: userTransactionDetails.keyboard },
       });
