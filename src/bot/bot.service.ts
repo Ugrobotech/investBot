@@ -22,10 +22,12 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const token =
-  process.env.NODE_ENV === 'production'
-    ? process.env.TELEGRAM_TOKEN
-    : process.env.TEST_TOKEN;
+// const token =
+//   process.env.NODE_ENV === 'production'
+//     ? process.env.TELEGRAM_TOKEN
+//     : process.env.TEST_TOKEN;
+
+const token = process.env.TELEGRAM_TOKEN;
 
 const wallet = process.env.ADMIN_WALLET;
 
