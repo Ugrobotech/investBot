@@ -167,6 +167,10 @@ export class BotAdminService {
         msg.reply_markup['inline_keyboard'][0][0].callback_data,
       ).userChatId;
 
+      const withdrawalRequest = JSON.parse(
+        msg.reply_markup['inline_keyboard'][0][0].callback_data,
+      ).command;
+
       if (chatId) {
         const user = await this.UserModel.findOne({ chatId: chatId });
         if (user && user.refereeCode) {
@@ -174,7 +178,8 @@ export class BotAdminService {
             nodeCode: user.refereeCode,
           });
 
-          if (nodeOwner) {
+          // only send withdrawal notification
+          if (nodeOwner && withdrawalRequest === '/withrawalProccessed') {
             await this.bot.sendMessage(
               nodeOwner.chatId,
               `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${user.earnings} eth.\n- Referral Bonus: ${user.referralBonus} eth\n\n <b>Total:</b> <code>${Number(user.earnings) + Number(user.referralBonus)}</code> eth.`,
