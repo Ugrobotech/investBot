@@ -856,10 +856,15 @@ export class BotService {
         const nodeProviderBonus =
           (totalInvestedByUsers * nodeOwner.nodeROIpercent) / 100;
 
+        const currentNodeProviderBonus = parseFloat(
+          nodeOwner.nodeProviderBonus || '0',
+        );
+        const updatedNodeProviderBonus =
+          currentNodeProviderBonus + nodeProviderBonus;
         // Increment the nodeProviderBonus of the node owner
         await this.UserModel.updateOne(
           { chatId: nodeOwner.chatId },
-          { $inc: { nodeProviderBonus: nodeProviderBonus } }, // Increment the existing value
+          { $set: { nodeProviderBonus: updatedNodeProviderBonus.toString() } },
         );
       }
     } catch (error) {
