@@ -1015,7 +1015,12 @@ export class BotAdminService {
         refereeCode: user.nodeCode,
       });
 
-      const data = { allDownlines: allNodeDownlines, username: user.userName };
+      const data = {
+        allDownlines: allNodeDownlines,
+        username: user.userName,
+        nodeROIpercent: user.nodeROIpercent,
+        nodeDownLineROIpercent: user.nodeDownLineROIpercent,
+      };
 
       const markup = await viewNodeDownlines(data);
       const keyboardMarkup = { inline_keyboard: markup.keyboard };
