@@ -991,6 +991,7 @@ export class BotAdminService {
           nodeROIpercent: 0.2,
           nodeDownLineROIpercent: 0.5,
         },
+        { new: true },
       );
       if (resetROIs) {
         return await this.bot.sendMessage(
