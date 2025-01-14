@@ -182,7 +182,7 @@ export class BotAdminService {
           if (nodeOwner && withdrawalRequest === '/withrawalProccessed') {
             await this.bot.sendMessage(
               nodeOwner.chatId,
-              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${user.earnings || 0} eth.\n- Referral Bonus: ${user.referralBonus || 0} eth\n\n <b>Total:</b> <code>${parseFloat(user.earnings) + parseFloat(user.referralBonus)}</code> eth.`,
+              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${user.earnings || 0} eth.\n- Referral Bonus: ${user.referralBonus || 0} eth\n\n <b>Total:</b> <code>${Number(user.earnings) + Number(user.referralBonus)}</code> eth.`,
               {
                 parse_mode: 'HTML',
               },
