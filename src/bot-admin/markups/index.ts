@@ -12,6 +12,9 @@ import { requestWithdrawal } from './requestWithrawal';
 import { referralReportMarkup } from './referralReport';
 import { viewReferrals } from './viewReferrals';
 import { viewInvestmentsDetails } from './viewInvestment';
+import { newNode } from './newNode';
+import { manageNodeMarkup } from './manageNode';
+import { viewNodeDownlines } from './viewNodeDownlines';
 
 export {
   welcomeMessageMarkup,
@@ -26,4 +29,7 @@ export {
   referralReportMarkup,
   viewReferrals,
   viewInvestmentsDetails,
+  newNode,
+  manageNodeMarkup,
+  viewNodeDownlines,
 };

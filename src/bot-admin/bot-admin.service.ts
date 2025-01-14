@@ -7,13 +7,16 @@ import * as multichainWallet from 'multichain-crypto-wallet';
 import {
   displayPrivateKeyMarkup,
   investDetailsMarkup,
+  manageNodeMarkup,
   menuMarkup,
+  newNode,
   referralReportMarkup,
   requestWithdrawal,
   showAdminTransactionDetails,
   showEarningDetails,
   showUserTransactionDetails,
   viewInvestmentsDetails,
+  viewNodeDownlines,
   viewReferrals,
   walletDetailsMarkup,
   welcomeMessageMarkup,
@@ -24,12 +27,14 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const token = process.env.TELEGRAM_TOKEN;
+const token = process.env.TELEGRAM_TOKEN_NODE;
+
+const wallet = process.env.ADMIN_WALLET;
 
 @Injectable()
-export class BotService {
+export class BotAdminService {
   private readonly bot: TelegramBot;
-  private logger = new Logger(BotService.name);
+  private logger = new Logger(BotAdminService.name);
 
   constructor(
     private readonly httpService: HttpService,
@@ -38,6 +43,7 @@ export class BotService {
     this.bot = new TelegramBot(token, { polling: true });
     this.bot.on('message', this.handleRecievedMessages);
     this.bot.on('callback_query', this.handleButtonCommands);
+    this.bot.on('channel_post', this.handleChannelPost);
   }
 
   handleRecievedMessages = async (msg: any) => {
@@ -52,6 +58,7 @@ export class BotService {
       const urlRegex = /0x[a-fA-F0-9]{64}/;
 
       const match = command.match(urlRegex);
+      const ROIs = await this.extractAndSumNodePercentages(command);
 
       if (command.startsWith('/start')) {
         const username = `${msg.from.username}`;
@@ -106,6 +113,28 @@ export class BotService {
       } else if (match) {
         await this.verifyPayment(msg.chat.id, match[0], msg.from.username);
         console.log('Url hash detected.');
+      } else if (ROIs) {
+        if (ROIs.sum >= 0.8) {
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `⚠️Maximum sum of both provider percentage  and downline ROI percentage is <b>0.7</b>, so when setting your provider and downline ROI percentage let it not exceed 0.7`,
+            { parse_mode: 'HTML' },
+          );
+        }
+        const setROIs = await this.UserModel.findOneAndUpdate(
+          { chatId: msg.chat.id },
+          {
+            nodeROIpercent: +ROIs.provider,
+            nodeDownLineROIpercent: +ROIs.downline,
+          },
+        );
+        if (setROIs) {
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `✅ Provider: ${setROIs.nodeROIpercent}%\n✅ Downline ROI: ${setROIs.nodeDownLineROIpercent}%`,
+            { parse_mode: 'HTML' },
+          );
+        }
       } else {
         switch (command) {
           case '/menu':
@@ -124,6 +153,36 @@ export class BotService {
               'Invalid command. Please use one of the available commands.',
             );
             break;
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  handleChannelPost = async (msg: any) => {
+    this.logger.debug(msg);
+    try {
+      const chatId = JSON.parse(
+        msg.reply_markup['inline_keyboard'][0][0].callback_data,
+      ).userChatId;
+
+      if (chatId) {
+        const user = await this.UserModel.findOne({ chatId: chatId });
+        if (user && user.refereeCode) {
+          const nodeOwner = await this.UserModel.findOne({
+            nodeCode: user.refereeCode,
+          });
+
+          if (nodeOwner) {
+            await this.bot.sendMessage(
+              nodeOwner.chatId,
+              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${user.earnings} eth.\n- Referral Bonus: ${user.referralBonus} eth\n\n <b>Total:</b> <code>${Number(user.earnings) + Number(user.referralBonus)}</code> eth.`,
+              {
+                parse_mode: 'HTML',
+              },
+            );
+          }
         }
       }
     } catch (error) {
@@ -246,6 +305,26 @@ export class BotService {
           await this.bot.sendChatAction(query.message.chat.id, 'typing');
           return await this.showUsersReferrals(query.message.chat.id);
 
+        case '/createNode':
+          await this.bot.sendChatAction(query.message.chat.id, 'typing');
+          return await this.createNode(query.message.chat.id);
+
+        case '/manageNode':
+          await this.bot.sendChatAction(query.message.chat.id, 'typing');
+          return await this.manageNode(query.message.chat.id);
+
+        case '/set%':
+          await this.bot.sendChatAction(query.message.chat.id, 'typing');
+          return await this.setROIPercentage(query.message.chat.id);
+
+        case '/resetROI%':
+          await this.bot.sendChatAction(query.message.chat.id, 'typing');
+          return await this.resetROIPercentage(query.message.chat.id);
+
+        case '/viewDownlines':
+          await this.bot.sendChatAction(query.message.chat.id, 'typing');
+          return await this.showNodeDownlines(query.message.chat.id);
+
         case '/default':
           await this.bot.sendChatAction(chatId, 'typing');
           return await this.bot.sendMessage(query.message.chat.id, ``);
@@ -339,11 +418,7 @@ export class BotService {
 
   showInvestMarkdown = async (chatId: any) => {
     try {
-      const user = await this.UserModel.findOne({ chatId: chatId });
-      if (!user) {
-        return this.bot.sendMessage(chatId, 'User detail does not exist');
-      }
-      const investMarkup = await investDetailsMarkup(user.walletAddress);
+      const investMarkup = await investDetailsMarkup(wallet);
       if (investMarkup) {
         const replyMarkup = {
           inline_keyboard: investMarkup.keyboard,
@@ -374,14 +449,7 @@ export class BotService {
             },
           },
         );
-
-        await this.UserModel.updateOne(
-          { chatId: chatId },
-          {
-            verifyPaymentSession: true,
-            $push: { hashPromptId: hashPromptId.message_id },
-          },
-        );
+        return hashPromptId;
       }
     } catch (error) {
       console.log(error);
@@ -403,8 +471,6 @@ export class BotService {
 
   getTransactionReceipt = async (hash: string, chatId: any, username: any) => {
     try {
-      const user = await this.UserModel.findOne({ chatId: chatId });
-
       const hashExist = await this.UserModel.find({
         paymentHashes: { $in: [hash] },
       });
@@ -430,8 +496,7 @@ export class BotService {
 
       if (
         receipt.data.result.status === '0x1' &&
-        receipt.data.result.to.toLowerCase() ===
-          user.walletAddress.toLowerCase()
+        receipt.data.result.to.toLowerCase() === wallet.toLowerCase()
       ) {
         const moralisURL = `https://deep-index.moralis.io/api/v2.2/transaction/${hash}/verbose?chain=eth`;
 
@@ -461,8 +526,6 @@ export class BotService {
           hash,
           chatId,
           username,
-          userWallet: user.walletAddress,
-          userPK: user.privateKey,
         };
       } else {
         this.bot.sendMessage(chatId, '‼️Invalid Payment‼️');
@@ -539,6 +602,7 @@ export class BotService {
       }
       const data = {
         earnings: user.earnings || 0,
+        nodeBonus: user.nodeProviderBonus || 0,
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
       };
@@ -763,11 +827,175 @@ export class BotService {
     }
   };
 
+  createNode = async (chatId: string) => {
+    const nodeBotLink = process.env.NODE_BOT_LINK;
+
+    function generateUniqueAlphanumeric(): string {
+      const characters =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      while (result.length < 8) {
+        const randomChar = characters.charAt(
+          Math.floor(Math.random() * characters.length),
+        );
+        if (!result.includes(randomChar)) {
+          result += randomChar;
+        }
+      }
+      return result;
+    }
+    try {
+      let uniquecode: string;
+      let codeExist: any;
+      //loop through to make sure the code does not alread exist
+      do {
+        uniquecode = generateUniqueAlphanumeric();
+        codeExist = await this.UserModel.findOne({
+          referralCode: uniquecode,
+        });
+      } while (codeExist);
+
+      const user = await this.UserModel.findOne({ chatId: chatId });
+
+      if (!user) {
+        return this.bot.sendMessage(chatId, 'User detail does not exist');
+      } else if (user.nodeCode && user.hasNode) {
+        const markup = await newNode(`${nodeBotLink}${user.nodeCode}`);
+        const keyboardMarkup = { inline_keyboard: markup.keyboard };
+        const newNodeDetails = await this.bot.sendMessage(
+          chatId,
+          markup.message,
+          {
+            parse_mode: 'HTML',
+            reply_markup: keyboardMarkup,
+          },
+        );
+        return newNodeDetails;
+      }
+      const createNodeForUser = await this.UserModel.findOneAndUpdate(
+        { _id: user._id },
+        { hasNode: true, nodeCode: uniquecode },
+        { new: true }, // Ensures the updated document is returned
+      );
+
+      if (createNodeForUser) {
+        const markup = await newNode(
+          `${nodeBotLink}${createNodeForUser.nodeCode}`,
+        );
+        const keyboardMarkup = { inline_keyboard: markup.keyboard };
+        const newNodeDetails = await this.bot.sendMessage(
+          chatId,
+          markup.message,
+          {
+            parse_mode: 'HTML',
+            reply_markup: keyboardMarkup,
+          },
+        );
+        return newNodeDetails;
+      }
+      return;
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  manageNode = async (chatId: string) => {
+    try {
+      const user = await this.UserModel.findOne({ chatId: chatId });
+
+      if (!user) {
+        return this.bot.sendMessage(chatId, 'User detail does not exist');
+      }
+
+      const markup = await manageNodeMarkup();
+      const keyboardMarkup = { inline_keyboard: markup.keyboard };
+      const manageNodeDetails = await this.bot.sendMessage(
+        chatId,
+        markup.message,
+        {
+          parse_mode: 'HTML',
+          reply_markup: keyboardMarkup,
+        },
+      );
+      return manageNodeDetails;
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  setROIPercentage = async (chatId: TelegramBot.ChatId) => {
+    try {
+      const promptId = await this.bot.sendMessage(
+        chatId,
+        'Input the provider % and downline ROI % eg: 0.2 and 0.7',
+        {
+          reply_markup: {
+            force_reply: true,
+          },
+        },
+      );
+
+      return promptId;
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  resetROIPercentage = async (chatId: TelegramBot.ChatId) => {
+    try {
+      const resetROIs = await this.UserModel.findOneAndUpdate(
+        { chatId: chatId },
+        {
+          nodeROIpercent: 0.2,
+          nodeDownLineROIpercent: 0.5,
+        },
+      );
+      if (resetROIs) {
+        return await this.bot.sendMessage(
+          chatId,
+          `✅ Default provider: ${resetROIs.nodeROIpercent}%\n✅ Default downline ROI: ${resetROIs.nodeDownLineROIpercent}%`,
+          { parse_mode: 'HTML' },
+        );
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  showNodeDownlines = async (chatId: string) => {
+    try {
+      const user = await this.UserModel.findOne({ chatId: chatId });
+
+      if (!user) {
+        return this.bot.sendMessage(chatId, 'User detail does not exist');
+      }
+      const allNodeDownlines = await this.UserModel.find({
+        refereeCode: user.nodeCode,
+      });
+
+      const data = { allDownlines: allNodeDownlines, username: user.userName };
+
+      const markup = await viewNodeDownlines(data);
+      const keyboardMarkup = { inline_keyboard: markup.keyboard };
+      const downlineDetails = await this.bot.sendMessage(
+        chatId,
+        markup.message,
+        {
+          parse_mode: 'HTML',
+          reply_markup: keyboardMarkup,
+        },
+      );
+      return downlineDetails;
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   // calculate aerning
   calculateEarning = async () => {
     try {
-      const referralBonusPercentage = 5; // 5% referral bonus
-      const earningBonusPercentage = 0.5; // 0.5% earning bonus
+      const referralBonusPercentage = 0.5; // 0.5% referral bonus
+      const earningBonusPercentage = 0.5; // 10% earning bonus
 
       // Fetch all users from the database
       const allUsers = await this.UserModel.find();
@@ -853,5 +1081,28 @@ export class BotService {
     const minutes = String(date.getMinutes()).padStart(2, '0');
 
     return `${day}/${month}/${year} ${hours}:${minutes}`;
+  };
+
+  extractAndSumNodePercentages = (input) => {
+    // Use regex to find numbers like 0.2, 0.7, 3, or 6
+    const matches = input.match(/\d+(\.\d+)?/g);
+
+    if (matches && matches.length >= 2) {
+      // Convert matches to numbers
+      const provider = parseFloat(matches[0]);
+      const downline = parseFloat(matches[1]);
+
+      // Calculate the sum
+      const sum = provider + downline;
+
+      return {
+        provider,
+        downline,
+        sum,
+      };
+    }
+
+    // Return null if there aren't enough matches
+    return null;
   };
 }

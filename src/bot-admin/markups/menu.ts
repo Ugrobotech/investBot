@@ -4,6 +4,15 @@ export const menuMarkup = async () => {
     keyboard: [
       [
         {
+          text: 'Node 🌳',
+          callback_data: JSON.stringify({
+            command: '/createNode',
+            language: 'english',
+          }),
+        },
+      ],
+      [
+        {
           text: 'Invest',
           callback_data: JSON.stringify({
             command: '/invest',

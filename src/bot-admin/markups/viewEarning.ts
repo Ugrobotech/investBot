@@ -1,8 +1,8 @@
 export const showEarningDetails = async (data: any) => {
-  const { earnings, referralBonus } = data;
-  const sumTotal = Number(earnings) + Number(referralBonus);
+  const { earnings, referralBonus, nodeBonus } = data;
+  const sumTotal = Number(earnings) + Number(referralBonus) + Number(nodeBonus);
   return {
-    message: `<b>Earnings 💵💵</b>\n\nEarnings : ${earnings} eth\nReferral Bonus : ${referralBonus} eth\n\n<b>Total :</b>${sumTotal} eth`,
+    message: `<b>Earnings 💵💵</b>\n\nEarnings : ${earnings} eth\nNode provider Bonus : ${nodeBonus} eth\nReferral Bonus : ${referralBonus} eth\n\n<b>Total :</b>${sumTotal} eth`,
     keyboard: [
       [
         {
