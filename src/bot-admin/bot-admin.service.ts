@@ -21,7 +21,7 @@ import {
   walletDetailsMarkup,
   welcomeMessageMarkup,
 } from './markups';
-import { Cron } from '@nestjs/schedule';
+// import { Cron } from '@nestjs/schedule';
 import { User } from './schemas/user.schema';
 import * as dotenv from 'dotenv';
 
@@ -470,7 +470,10 @@ export class BotAdminService {
   };
 
   getTransactionReceipt = async (hash: string, chatId: any, username: any) => {
+    const referralBonusPercentage = process.env.REFERRAL_PERCENT;
     try {
+      const user = await this.UserModel.findOne({ chatId: chatId });
+
       const hashExist = await this.UserModel.find({
         paymentHashes: { $in: [hash] },
       });
@@ -496,7 +499,8 @@ export class BotAdminService {
 
       if (
         receipt.data.result.status === '0x1' &&
-        receipt.data.result.to.toLowerCase() === wallet.toLowerCase()
+        receipt.data.result.to.toLowerCase() ===
+          user.walletAddress.toLowerCase()
       ) {
         const moralisURL = `https://deep-index.moralis.io/api/v2.2/transaction/${hash}/verbose?chain=eth`;
 
@@ -507,7 +511,7 @@ export class BotAdminService {
         const ethValue = parseFloat(response.data.value) / Math.pow(10, 18);
         const time = this.formatDateTime(response.data.block_timestamp);
 
-        await this.UserModel.updateOne(
+        const updatedUser = await this.UserModel.findOneAndUpdate(
           { chatId },
           {
             $push: {
@@ -515,7 +519,26 @@ export class BotAdminService {
               paymentHashes: hash,
             },
           },
+          { new: true },
         );
+
+        const referee = await this.UserModel.findOne({
+          referralCode: updatedUser.refereeCode,
+        });
+
+        if (referee) {
+          await this.UserModel.updateOne(
+            {
+              referralCode: updatedUser.refereeCode,
+            },
+            {
+              $inc: {
+                referralBonus:
+                  (ethValue * parseFloat(referralBonusPercentage)) / 100, // Increment referral bonus
+              },
+            },
+          );
+        }
 
         return {
           status: 'confirmed',
@@ -526,6 +549,8 @@ export class BotAdminService {
           hash,
           chatId,
           username,
+          userWallet: user.walletAddress,
+          userPK: user.privateKey,
         };
       } else {
         this.bot.sendMessage(chatId, '‼️Invalid Payment‼️');
@@ -994,8 +1019,8 @@ export class BotAdminService {
   // calculate aerning
   calculateEarning = async () => {
     try {
-      const referralBonusPercentage = 0.5; // 0.5% referral bonus
-      const earningBonusPercentage = 0.5; // 10% earning bonus
+      const referralBonusPercentage = 5; // 5% referral bonus
+      const earningBonusPercentage = 0.5; // 0.5% earning bonus
 
       // Fetch all users from the database
       const allUsers = await this.UserModel.find();
@@ -1063,11 +1088,11 @@ export class BotAdminService {
     }
   };
 
-  @Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
-  async handleCron(): Promise<void> {
-    console.log('running cron');
-    await this.calculateEarning();
-  }
+  // @Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
+  // async handleCron(): Promise<void> {
+  //   console.log('running cron');
+  //   await this.calculateEarning();
+  // }
 
   /// utilsss
   formatDateTime = (isoDateString: string): string => {

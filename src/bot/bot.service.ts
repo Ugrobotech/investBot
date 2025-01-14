@@ -402,6 +402,7 @@ export class BotService {
   };
 
   getTransactionReceipt = async (hash: string, chatId: any, username: any) => {
+    const referralBonusPercentage = process.env.REFERRAL_PERCENT;
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
 
@@ -442,7 +443,7 @@ export class BotService {
         const ethValue = parseFloat(response.data.value) / Math.pow(10, 18);
         const time = this.formatDateTime(response.data.block_timestamp);
 
-        await this.UserModel.updateOne(
+        const updatedUser = await this.UserModel.findOneAndUpdate(
           { chatId },
           {
             $push: {
@@ -450,7 +451,26 @@ export class BotService {
               paymentHashes: hash,
             },
           },
+          { new: true },
         );
+
+        const referee = await this.UserModel.findOne({
+          referralCode: updatedUser.refereeCode,
+        });
+
+        if (referee) {
+          await this.UserModel.updateOne(
+            {
+              referralCode: updatedUser.refereeCode,
+            },
+            {
+              $inc: {
+                referralBonus:
+                  (ethValue * parseFloat(referralBonusPercentage)) / 100, // Increment referral bonus
+              },
+            },
+          );
+        }
 
         return {
           status: 'confirmed',
@@ -765,22 +785,37 @@ export class BotService {
 
   // calculate aerning
   calculateEarning = async () => {
-    try {
-      const referralBonusPercentage = 5; // 5% referral bonus
-      const earningBonusPercentage = 0.5; // 0.5% earning bonus
+    function sumArray(arr) {
+      return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
 
-      // Fetch all users from the database
+    const earningBonusPercentage = parseFloat(process.env.EARNING_PERCENT);
+
+    try {
+      // Fetch all users and all node owners from the database
       const allUsers = await this.UserModel.find();
+      const allNodeOwner = await this.UserModel.find({ hasNode: true });
 
       for (const user of allUsers) {
-        // Calculate earnings based on amounts invested
-        const totalInvested = user.amountsInvested.reduce(
-          (sum, amount) => sum + parseFloat(amount),
-          0,
-        ); // sum of all investments
+        // Calculate the total invested amount for the user
+        const totalInvested = sumArray(user.amountsInvested) || 0;
 
-        // Calculate the earning bonus (earningBonus% of totalInvested)
-        const earnings = (totalInvested * earningBonusPercentage) / 100;
+        // Find the node owner corresponding to the user's refereeCode
+        const nodeOwner = allNodeOwner.find(
+          (nodeOwner) => nodeOwner.nodeCode === user.refereeCode,
+        );
+
+        let earnings = 0;
+
+        if (nodeOwner) {
+          // If the user matches a node owner (refereeCode matches nodeCode), calculate using the nodeDownLineROIpercent
+          const downLineEarnings =
+            (totalInvested * nodeOwner.nodeDownLineROIpercent) / 100;
+          earnings = downLineEarnings;
+        } else {
+          // If no match, calculate earnings using the default earningBonusPercentage
+          earnings = (totalInvested * earningBonusPercentage) / 100;
+        }
 
         // Accumulate earnings: if the user already has earnings, add the new ones
         const currentEarnings = parseFloat(user.earnings || '0');
@@ -791,54 +826,84 @@ export class BotService {
           { chatId: user.chatId },
           { $set: { earnings: updatedEarnings.toString() } },
         );
-
-        // Now, handle the referral bonus logic
-        if (user.referralCode) {
-          // Fetch all users with the current user's referral code (the referees)
-          const referees = await this.UserModel.find({
-            refereeCode: user.referralCode,
-          });
-
-          let totalReferralBonus = 0;
-
-          // Loop through referees to calculate the total referral bonus
-          for (const referee of referees) {
-            const totalInvestedByReferee = referee.amountsInvested.reduce(
-              (sum, amount) => sum + parseFloat(amount),
-              0,
-            ); // sum of all the referee's investments
-
-            // Calculate the referral bonus (referralBonus% of the referee's earnings)
-            const refereeEarnings =
-              (totalInvestedByReferee * earningBonusPercentage) / 100;
-            const referralBonus =
-              (refereeEarnings * referralBonusPercentage) / 100;
-
-            // Add this to the totalReferralBonus
-            totalReferralBonus += referralBonus;
-          }
-
-          // Accumulate referral bonus: if the user already has referralBonus, add the new one
-          const currentReferralBonus = parseFloat(user.referralBonus || '0');
-          const updatedReferralBonus =
-            currentReferralBonus + totalReferralBonus;
-
-          // Update the user's referral bonus with the accumulated value
-          await this.UserModel.updateOne(
-            { chatId: user.chatId },
-            { $set: { referralBonus: updatedReferralBonus.toString() } },
-          );
-        }
       }
     } catch (error) {
       console.log(error);
     }
   };
 
+  calculateNodeProviderBonus = async () => {
+    function sumArray(arr) {
+      return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
+    try {
+      // Fetch all node owners from the database
+      const allNodeOwner = await this.UserModel.find({ hasNode: true });
+
+      for (const nodeOwner of allNodeOwner) {
+        // Find all users who have this node owner as their referee
+        const usersUnderNodeOwner = await this.UserModel.find({
+          refereeCode: nodeOwner.nodeCode,
+        });
+
+        // Sum the total investment of all users under this node owner
+        const totalInvestedByUsers = usersUnderNodeOwner.reduce(
+          (sum, user) => sum + sumArray(user.amountsInvested),
+          0,
+        );
+
+        // Calculate the nodeProviderBonus based on the total investment
+        const nodeProviderBonus =
+          (totalInvestedByUsers * nodeOwner.nodeROIpercent) / 100;
+
+        // Increment the nodeProviderBonus of the node owner
+        await this.UserModel.updateOne(
+          { chatId: nodeOwner.chatId },
+          { $inc: { nodeProviderBonus: nodeProviderBonus } }, // Increment the existing value
+        );
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  //   calculateEarning = async () => {
+  //     function sumArray(arr) {
+  //       return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  //     }
+  //     const earningBonusPercentage = parseFloat(process.env.EARNING_PERCENT);
+  //     try {
+  //       // Fetch all users from the database
+  //       const allUsers = await this.UserModel.find();
+  //       const allNodeOwner = await this.UserModel.find({ hasNode: true });
+
+  //       for (const user of allUsers) {
+  //         // Calculate earnings based on amounts invested
+  //         const totalInvested = sumArray(user.amountsInvested) || 0;
+
+  //         // Calculate the earning bonus (earningBonus% of totalInvested)
+  //         const earnings = (totalInvested * earningBonusPercentage) / 100;
+
+  //         // Accumulate earnings: if the user already has earnings, add the new ones
+  //         const currentEarnings = parseFloat(user.earnings || '0');
+  //         const updatedEarnings = currentEarnings + earnings;
+
+  //         // Update the user's earnings with the accumulated value
+  //         await this.UserModel.updateOne(
+  //           { chatId: user.chatId },
+  //           { $set: { earnings: updatedEarnings.toString() } },
+  //         );
+  //       }
+  //     } catch (error) {
+  //       console.log(error);
+  //     }
+  //   };
+
   @Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
+    await this.calculateNodeProviderBonus();
   }
 
   /// utilsss
