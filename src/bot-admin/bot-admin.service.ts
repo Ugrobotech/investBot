@@ -776,6 +776,7 @@ export class BotAdminService {
         earnings: user.earnings || 0,
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
+        nodeBonus: user.nodeProviderBonus || 0,
       };
 
       const sumTotal = Number(data.earnings) + Number(data.referralBonus);
