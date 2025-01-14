@@ -29,8 +29,6 @@ dotenv.config();
 
 const token = process.env.TELEGRAM_TOKEN_NODE;
 
-const wallet = process.env.ADMIN_WALLET;
-
 @Injectable()
 export class BotAdminService {
   private readonly bot: TelegramBot;
@@ -58,7 +56,7 @@ export class BotAdminService {
       const urlRegex = /0x[a-fA-F0-9]{64}/;
 
       const match = command.match(urlRegex);
-      const ROIs = await this.extractAndSumNodePercentages(command);
+      const ROIs = this.extractAndSumNodePercentages(command);
 
       if (command.startsWith('/start')) {
         const username = `${msg.from.username}`;
@@ -127,7 +125,9 @@ export class BotAdminService {
             nodeROIpercent: +ROIs.provider,
             nodeDownLineROIpercent: +ROIs.downline,
           },
+          { new: true }, // This ensures the updated document is returned
         );
+
         if (setROIs) {
           return await this.bot.sendMessage(
             msg.chat.id,
@@ -427,7 +427,11 @@ export class BotAdminService {
 
   showInvestMarkdown = async (chatId: any) => {
     try {
-      const investMarkup = await investDetailsMarkup(wallet);
+      const user = await this.UserModel.findOne({ chatId: chatId });
+      if (!user) {
+        return this.bot.sendMessage(chatId, 'User detail does not exist');
+      }
+      const investMarkup = await investDetailsMarkup(user.walletAddress);
       if (investMarkup) {
         const replyMarkup = {
           inline_keyboard: investMarkup.keyboard,
@@ -961,7 +965,7 @@ export class BotAdminService {
     try {
       const promptId = await this.bot.sendMessage(
         chatId,
-        'Input the provider % and downline ROI % eg: 0.2 and 0.7',
+        'Input the provider % and downline ROI % eg: 0.2 0.5',
         {
           reply_markup: {
             force_reply: true,
@@ -1117,14 +1121,38 @@ export class BotAdminService {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
-  extractAndSumNodePercentages = (input) => {
-    // Use regex to find numbers like 0.2, 0.7, 3, or 6
-    const matches = input.match(/\d+(\.\d+)?/g);
+  // extractAndSumNodePercentages = (input) => {
+  //   // Use regex to find numbers like 0.2, 0.7, 3, or 6
+  //   const matches = input.match(/\d+(\.\d+)?/g);
 
-    if (matches && matches.length >= 2) {
-      // Convert matches to numbers
-      const provider = parseFloat(matches[0]);
-      const downline = parseFloat(matches[1]);
+  //   if (matches && matches.length >= 2) {
+  //     // Convert matches to numbers
+  //     const provider = parseFloat(matches[0]);
+  //     const downline = parseFloat(matches[1]);
+
+  //     // Calculate the sum
+  //     const sum = provider + downline;
+
+  //     return {
+  //       provider,
+  //       downline,
+  //       sum,
+  //     };
+  //   }
+
+  //   // Return null if there aren't enough matches
+  //   return null;
+  // };
+
+  extractAndSumNodePercentages = (input) => {
+    // Regex to match numbers separated by "and" or spaces
+    const matches = input.match(/\d+(\.\d+)?(?:\s+and\s+|\s+)\d+(\.\d+)?/);
+
+    if (matches) {
+      // Extract provider and downline using capturing groups
+      const [provider, downline] = matches[0]
+        .split(/and|\s+/)
+        .map((num) => parseFloat(num));
 
       // Calculate the sum
       const sum = provider + downline;
@@ -1136,7 +1164,7 @@ export class BotAdminService {
       };
     }
 
-    // Return null if there aren't enough matches
+    // Return null if no valid input is found
     return null;
   };
 }
