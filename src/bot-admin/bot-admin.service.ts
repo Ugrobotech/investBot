@@ -779,7 +779,10 @@ export class BotAdminService {
         nodeBonus: user.nodeProviderBonus || 0,
       };
 
-      const sumTotal = Number(data.earnings) + Number(data.referralBonus);
+      const sumTotal =
+        Number(data.earnings) +
+        Number(data.referralBonus) +
+        Number(data.nodeBonus);
       const withdraw = await requestWithdrawal(data);
       const channelId = process.env.CHANNEL_ID;
       if (sumTotal <= 0) {
