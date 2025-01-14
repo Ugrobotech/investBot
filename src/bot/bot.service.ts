@@ -429,11 +429,11 @@ export class BotService {
         body,
       );
 
-      if (
-        receipt.data.result.status === '0x1' &&
-        receipt.data.result.to.toLowerCase() ===
-          user.walletAddress.toLowerCase()
-      ) {
+      //  receipt.data.result.status === '0x1' &&
+      //    receipt.data.result.to.toLowerCase() ===
+      //      user.walletAddress.toLowerCase();
+
+      if (receipt.data.result.status === '0x1') {
         const moralisURL = `https://deep-index.moralis.io/api/v2.2/transaction/${hash}/verbose?chain=eth`;
 
         const response = await this.httpService.axiosRef.get(moralisURL, {
