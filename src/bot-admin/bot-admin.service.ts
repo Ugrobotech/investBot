@@ -180,9 +180,13 @@ export class BotAdminService {
 
           // only send withdrawal notification
           if (nodeOwner && withdrawalRequest === '/withrawalProccessed') {
+            const earnings = user.earnings || 0;
+            const referralBonus = user.referralBonus || 0;
+            const sum = Number(earnings) + Number(referralBonus);
+
             await this.bot.sendMessage(
               nodeOwner.chatId,
-              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${user.earnings || 0} eth.\n- Referral Bonus: ${user.referralBonus || 0} eth\n\n <b>Total:</b> <code>${Number(user.earnings) + Number(user.referralBonus)}</code> eth.`,
+              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${earnings} eth.\n- Referral Bonus: ${referralBonus} eth\n\n <b>Total:</b> <code>${sum}</code> eth.`,
               {
                 parse_mode: 'HTML',
               },
