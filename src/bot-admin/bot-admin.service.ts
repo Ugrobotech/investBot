@@ -798,7 +798,7 @@ export class BotAdminService {
 
       await this.bot.sendMessage(
         chatId,
-        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth.\n- Node provider Bonue: ${data.nodeBonus} eth\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\nHang on 🔄 while your withdrawal is being processed.`,
+        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth.\n- Node provider Bonus: ${data.nodeBonus} eth\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\nHang on 🔄 while your withdrawal is being processed.`,
         {
           parse_mode: 'HTML',
         },
