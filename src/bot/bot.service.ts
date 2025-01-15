@@ -391,7 +391,7 @@ export class BotService {
   verifyPayment = async (chatId: any, hash: string, username: any) => {
     try {
       const receipt = await this.getTransactionReceipt(hash, chatId, username);
-      if (receipt.status && receipt.status === 'confirmed') {
+      if (receipt?.status && receipt?.status === 'confirmed') {
         await this.sendInvestmentDetails(receipt, chatId);
       } else {
         return;
@@ -406,17 +406,17 @@ export class BotService {
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
 
-      const hashExist = await this.UserModel.find({
-        paymentHashes: { $in: [hash] },
-      });
+      //   const hashExist = await this.UserModel.find({
+      //     paymentHashes: { $in: [hash] },
+      //   });
 
-      if (hashExist.length > 0) {
-        await this.bot.sendMessage(
-          chatId,
-          `‼️ This transaction already exist in the system‼️`,
-        );
-        return;
-      }
+      //   if (hashExist.length > 0) {
+      //     await this.bot.sendMessage(
+      //       chatId,
+      //       `‼️ This transaction already exist in the system‼️`,
+      //     );
+      //     return;
+      //   }
 
       const body = JSON.stringify({
         method: 'eth_getTransactionReceipt',

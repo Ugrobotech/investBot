@@ -487,17 +487,17 @@ export class BotAdminService {
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
 
-      const hashExist = await this.UserModel.find({
-        paymentHashes: { $in: [hash] },
-      });
+      // const hashExist = await this.UserModel.find({
+      //   paymentHashes: { $in: [hash] },
+      // });
 
-      if (hashExist.length > 0) {
-        await this.bot.sendMessage(
-          chatId,
-          `‼️ This transaction already exist in the system‼️`,
-        );
-        return;
-      }
+      // if (hashExist.length > 0) {
+      //   await this.bot.sendMessage(
+      //     chatId,
+      //     `‼️ This transaction already exist in the system‼️`,
+      //   );
+      //   return;
+      // }
 
       const body = JSON.stringify({
         method: 'eth_getTransactionReceipt',
