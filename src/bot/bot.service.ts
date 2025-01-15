@@ -844,6 +844,10 @@ export class BotService {
           const downLineEarnings =
             (totalInvested * nodeOwner.nodeDownLineROIpercent) / 100;
           earnings = downLineEarnings;
+        } else if (user.hasNode) {
+          const downLineEarnings =
+            (totalInvested * user.nodeDownLineROIpercent) / 100;
+          earnings = downLineEarnings;
         } else {
           // If no match, calculate earnings using the default earningBonusPercentage
           earnings = (totalInvested * earningBonusPercentage) / 100;
