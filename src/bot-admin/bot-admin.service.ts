@@ -542,7 +542,7 @@ export class BotAdminService {
         if (referee) {
           await this.UserModel.updateOne(
             {
-              referralCode: updatedUser.refereeCode,
+              referralCode: referee.referralCode,
             },
             {
               $inc: {

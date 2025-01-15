@@ -461,7 +461,7 @@ export class BotService {
         if (referee) {
           await this.UserModel.updateOne(
             {
-              referralCode: updatedUser.refereeCode,
+              referralCode: referee.referralCode,
             },
             {
               $inc: {
