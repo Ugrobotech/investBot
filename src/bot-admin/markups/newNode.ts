@@ -1,6 +1,6 @@
 export const newNode = async (botURL: string) => {
   return {
-    message: `<b>Your Node</b>\n\n<b>Node link:</b><code>${botURL}</code>, you can share the link to add friends to your node and earn with them`,
+    message: `<b>Your Node</b>\n\n<b>Node link:</b><code>${botURL}</code>\n\nyou can share the link to add friends to your node and earn with them`,
     keyboard: [
       [
         {
