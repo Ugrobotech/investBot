@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { HttpService } from '@nestjs/axios';
 import { Model } from 'mongoose';
@@ -21,6 +21,7 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { User } from './schemas/user.schema';
 import * as dotenv from 'dotenv';
+import { BotAdminService } from 'src/bot-admin/bot-admin.service';
 
 dotenv.config();
 
@@ -32,6 +33,8 @@ export class BotService {
   private logger = new Logger(BotService.name);
 
   constructor(
+    @Inject(forwardRef(() => BotAdminService))
+    private botAdminService: BotAdminService,
     private readonly httpService: HttpService,
     @InjectModel(User.name) private readonly UserModel: Model<User>,
   ) {
@@ -459,17 +462,38 @@ export class BotService {
         });
 
         if (referee) {
-          await this.UserModel.updateOne(
+          const currentBonus = parseFloat(referee.referralBonus || '0');
+          const newBonus =
+            (ethValue * parseFloat(referralBonusPercentage)) / 100;
+
+          const updatedBonus = currentBonus + newBonus;
+
+          const updatedReferee = await this.UserModel.findOneAndUpdate(
             {
               referralCode: referee.referralCode,
             },
             {
-              $inc: {
-                referralBonus:
-                  (ethValue * parseFloat(referralBonusPercentage)) / 100, // Increment referral bonus
+              $set: {
+                referralBonus: updatedBonus.toString(), // Store updated bonus as a string
               },
             },
+            { new: true }, // Ensures the updated document is returned
           );
+
+          if (updatedReferee && updatedReferee.hasNode) {
+            const message = `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonus from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`;
+
+            await this.botAdminService.sendMessageToOtherBots(
+              updatedReferee.chatId,
+              message,
+            );
+          } else if (updatedReferee) {
+            await this.bot.sendMessage(
+              updatedReferee.chatId,
+              `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonus from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`,
+              { parse_mode: 'HTML' },
+            );
+          }
         }
 
         return {
@@ -783,6 +807,14 @@ export class BotService {
     }
   };
 
+  sendMessageToOtherBots = async (chatId: any, message: string) => {
+    try {
+      await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   // calculate aerning
   calculateEarning = async () => {
     function sumArray(arr) {
@@ -822,10 +854,28 @@ export class BotService {
         const updatedEarnings = currentEarnings + earnings;
 
         // Update the user's earnings with the accumulated value
-        await this.UserModel.updateOne(
+        const updatedUser = await this.UserModel.findOneAndUpdate(
           { chatId: user.chatId },
           { $set: { earnings: updatedEarnings.toString() } },
+          { new: true },
         );
+        if (updatedUser && parseFloat(updatedUser.earnings) > 0) {
+          const message = `<b>🔔 Earn Alert</b>\n\nYou have earned ${earnings} eth, from your investment.\n<b>Total Earnings:</b> ${updatedUser.earnings} eth`;
+          try {
+            if (updatedUser.hasNode) {
+              await this.botAdminService.sendMessageToOtherBots(
+                updatedUser.chatId,
+                message,
+              );
+            } else {
+              await this.bot.sendMessage(updatedUser.chatId, message, {
+                parse_mode: 'HTML',
+              });
+            }
+          } catch (error) {
+            console.log(error);
+          }
+        }
       }
     } catch (error) {
       console.log(error);
@@ -862,10 +912,26 @@ export class BotService {
         const updatedNodeProviderBonus =
           currentNodeProviderBonus + nodeProviderBonus;
         // Increment the nodeProviderBonus of the node owner
-        await this.UserModel.updateOne(
+        const updateNodeOwner = await this.UserModel.findOneAndUpdate(
           { chatId: nodeOwner.chatId },
           { $set: { nodeProviderBonus: updatedNodeProviderBonus.toString() } },
+          { new: true },
         );
+
+        if (
+          updateNodeOwner &&
+          parseFloat(updateNodeOwner.nodeProviderBonus) > 0
+        ) {
+          const message = `<b>🔔 Earn Alert</b>\n\nYou have earned ${nodeProviderBonus} eth, as a Node Provider.\n<b>Total Provider Earnings:</b> ${updateNodeOwner.nodeProviderBonus} eth`;
+          try {
+            await this.botAdminService.sendMessageToOtherBots(
+              updateNodeOwner.chatId,
+              message,
+            );
+          } catch (error) {
+            console.log(error);
+          }
+        }
       }
     } catch (error) {
       console.log(error);

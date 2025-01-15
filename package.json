@@ -27,6 +27,7 @@
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^4.1.2",
     "dotenv": "^16.4.7",
+    "madge": "^8.0.0",
     "mongoose": "^8.9.4",
     "multichain-crypto-wallet": "^0.2.8",
     "node-telegram-bot-api": "^0.66.0",

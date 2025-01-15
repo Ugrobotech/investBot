@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { HttpService } from '@nestjs/axios';
 import { Model } from 'mongoose';
@@ -24,6 +24,7 @@ import {
 // import { Cron } from '@nestjs/schedule';
 import { User } from './schemas/user.schema';
 import * as dotenv from 'dotenv';
+import { BotService } from 'src/bot/bot.service';
 
 dotenv.config();
 
@@ -35,6 +36,8 @@ export class BotAdminService {
   private logger = new Logger(BotAdminService.name);
 
   constructor(
+    @Inject(forwardRef(() => BotService))
+    private botService: BotService,
     private readonly httpService: HttpService,
     @InjectModel(User.name) private readonly UserModel: Model<User>,
   ) {
@@ -540,17 +543,38 @@ export class BotAdminService {
         });
 
         if (referee) {
-          await this.UserModel.updateOne(
+          const currentBonus = parseFloat(referee.referralBonus || '0');
+          const newBonus =
+            (ethValue * parseFloat(referralBonusPercentage)) / 100;
+
+          const updatedBonus = currentBonus + newBonus;
+
+          const updatedReferee = await this.UserModel.findOneAndUpdate(
             {
               referralCode: referee.referralCode,
             },
             {
-              $inc: {
-                referralBonus:
-                  (ethValue * parseFloat(referralBonusPercentage)) / 100, // Increment referral bonus
+              $set: {
+                referralBonus: updatedBonus.toString(), // Store updated bonus as a string
               },
             },
+            { new: true }, // Ensures the updated document is returned
           );
+
+          if (updatedReferee && !updatedReferee.hasNode) {
+            const message = `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonue from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`;
+
+            await this.botService.sendMessageToOtherBots(
+              updatedReferee.chatId,
+              message,
+            );
+          } else if (updatedReferee) {
+            await this.bot.sendMessage(
+              updatedReferee.chatId,
+              `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonus from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`,
+              { parse_mode: 'HTML' },
+            );
+          }
         }
 
         return {
@@ -869,34 +893,17 @@ export class BotAdminService {
     }
   };
 
+  sendMessageToOtherBots = async (chatId: any, message: string) => {
+    try {
+      await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   createNode = async (chatId: string) => {
     const nodeBotLink = process.env.NODE_BOT_LINK;
-
-    function generateUniqueAlphanumeric(): string {
-      const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let result = '';
-      while (result.length < 8) {
-        const randomChar = characters.charAt(
-          Math.floor(Math.random() * characters.length),
-        );
-        if (!result.includes(randomChar)) {
-          result += randomChar;
-        }
-      }
-      return result;
-    }
     try {
-      let uniquecode: string;
-      let codeExist: any;
-      //loop through to make sure the code does not alread exist
-      do {
-        uniquecode = generateUniqueAlphanumeric();
-        codeExist = await this.UserModel.findOne({
-          referralCode: uniquecode,
-        });
-      } while (codeExist);
-
       const user = await this.UserModel.findOne({ chatId: chatId });
 
       if (!user) {
@@ -916,7 +923,7 @@ export class BotAdminService {
       }
       const createNodeForUser = await this.UserModel.findOneAndUpdate(
         { _id: user._id },
-        { hasNode: true, nodeCode: uniquecode },
+        { hasNode: true, nodeCode: user.referralCode },
         { new: true }, // Ensures the updated document is returned
       );
 
