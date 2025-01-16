@@ -1,10 +1,10 @@
-export const menuMarkup = async () => {
+export const menuMarkup = async (hasNode?: boolean) => {
   return {
     message: `Please Select any action below 👇`,
     keyboard: [
       [
         {
-          text: 'Node 🌳',
+          text: `${hasNode ? `Node 🌳` : `Create Node 🌳`}`,
           callback_data: JSON.stringify({
             command: '/createNode',
             language: 'english',

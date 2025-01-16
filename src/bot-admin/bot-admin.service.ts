@@ -453,7 +453,8 @@ export class BotAdminService {
 
   sendAllFeature = async (chatId: any) => {
     try {
-      const allFeatures = await menuMarkup();
+      const user = await this.UserModel.findOne({ chatId: chatId });
+      const allFeatures = await menuMarkup(user.hasNode);
       if (allFeatures) {
         const replyMarkup = {
           inline_keyboard: allFeatures.keyboard,
