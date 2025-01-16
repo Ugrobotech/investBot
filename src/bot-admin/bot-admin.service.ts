@@ -320,9 +320,12 @@ export class BotAdminService {
         case '/exportWallet':
           await this.bot.sendChatAction(chatId, 'typing');
           return await this.exportWallet(query.message.chat.id);
-
         case '/withdraw':
           await this.bot.sendChatAction(chatId, 'typing');
+          await this.UserModel.updateOne(
+            { chatId: query.message.chat.id },
+            { withdrawalSession: true },
+          );
           return await this.withdrawalRequest(query.message.chat.id);
 
         case '/withrawalProccessed':
