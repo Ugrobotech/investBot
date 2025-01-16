@@ -44,7 +44,7 @@ export class BotAdminService {
     this.bot = new TelegramBot(token, { polling: true });
     this.bot.on('message', this.handleRecievedMessages);
     this.bot.on('callback_query', this.handleButtonCommands);
-    this.bot.on('channel_post', this.handleChannelPost);
+    // this.bot.on('channel_post', this.handleChannelPost);
   }
 
   handleRecievedMessages = async (msg: any) => {
@@ -57,6 +57,7 @@ export class BotAdminService {
       // regex for transaction hash
       const pattern = /^0x[a-fA-F0-9]{64}$/;
       const urlRegex = /0x[a-fA-F0-9]{64}/;
+      const amountRegex = /^\d+(\.\d+)?$/;
 
       const match = command.match(urlRegex);
       const ROIs = this.extractAndSumNodePercentages(command);
@@ -114,48 +115,83 @@ export class BotAdminService {
       } else if (match) {
         await this.verifyPayment(msg.chat.id, match[0], msg.from.username);
         console.log('Url hash detected.');
-      } else if (ROIs) {
-        if (ROIs.sum >= 0.8) {
-          return await this.bot.sendMessage(
-            msg.chat.id,
-            `⚠️Maximum sum of both provider percentage  and downline ROI percentage is <b>0.7</b>, so when setting your provider and downline ROI percentage let it not exceed 0.7`,
-            { parse_mode: 'HTML' },
-          );
-        }
-        const setROIs = await this.UserModel.findOneAndUpdate(
-          { chatId: msg.chat.id },
-          {
-            nodeROIpercent: +ROIs.provider,
-            nodeDownLineROIpercent: +ROIs.downline,
-          },
-          { new: true }, // This ensures the updated document is returned
-        );
-
-        if (setROIs) {
-          return await this.bot.sendMessage(
-            msg.chat.id,
-            `✅ Provider: ${setROIs.nodeROIpercent}%\n✅ Downline ROI: ${setROIs.nodeDownLineROIpercent}%`,
-            { parse_mode: 'HTML' },
-          );
-        }
       } else {
-        switch (command) {
-          case '/menu':
-            await this.bot.sendChatAction(msg.chat.id, 'typing');
-            await this.sendAllFeature(msg.chat.id);
-            break;
+        const user = await this.UserModel.findOne({
+          chatId: msg.chat.id,
+        });
 
-          case '/invest':
-            await this.bot.sendChatAction(msg.chat.id, 'typing');
-            await this.showInvestMarkdown(msg.chat.id);
-            break;
-
-          default:
-            await this.bot.sendMessage(
+        if (user.withdrawalSession && amountRegex.test(command)) {
+          const amount = command;
+          await this.withdrawalRequest(msg.chat.id, amount);
+        } else if (user.withdrawalSession) {
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `‼️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
+          );
+        } else if (user.withdrawalSession && command === '/cancel') {
+          await this.UserModel.updateOne(
+            { chatId: msg.chat.id },
+            { withdrawalSession: false },
+          );
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `✅Withdraw session cancelled`,
+          );
+        } else if (ROIs && !user.withdrawalSession) {
+          if (ROIs.sum >= 0.8) {
+            return await this.bot.sendMessage(
               msg.chat.id,
-              'Invalid command. Please use one of the available commands.',
+              `⚠️Maximum sum of both provider percentage  and downline ROI percentage is <b>0.7</b>, so when setting your provider and downline ROI percentage let it not exceed 0.7`,
+              { parse_mode: 'HTML' },
             );
-            break;
+          }
+          const setROIs = await this.UserModel.findOneAndUpdate(
+            { chatId: msg.chat.id },
+            {
+              nodeROIpercent: +ROIs.provider,
+              nodeDownLineROIpercent: +ROIs.downline,
+            },
+            { new: true }, // This ensures the updated document is returned
+          );
+
+          if (setROIs) {
+            return await this.bot.sendMessage(
+              msg.chat.id,
+              `✅ Provider: ${setROIs.nodeROIpercent}%\n✅ Downline ROI: ${setROIs.nodeDownLineROIpercent}%`,
+              { parse_mode: 'HTML' },
+            );
+          }
+        } else {
+          switch (command) {
+            case '/menu':
+              await this.bot.sendChatAction(msg.chat.id, 'typing');
+              await this.sendAllFeature(msg.chat.id);
+              break;
+
+            case '/invest':
+              await this.bot.sendChatAction(msg.chat.id, 'typing');
+              await this.showInvestMarkdown(msg.chat.id);
+              break;
+
+            case '/cancel':
+              await this.bot.sendChatAction(msg.chat.id, 'typing');
+              await this.UserModel.updateOne(
+                { chatId: msg.chat.id },
+                { withdrawalSession: false },
+              );
+              await this.bot.sendMessage(
+                msg.chat.id,
+                `✅Withdraw session cancelled`,
+              );
+              break;
+
+            default:
+              await this.bot.sendMessage(
+                msg.chat.id,
+                'Invalid command. Please use one of the available commands.',
+              );
+              break;
+          }
         }
       }
     } catch (error) {
@@ -185,6 +221,7 @@ export class BotAdminService {
           if (nodeOwner && withdrawalRequest === '/withrawalProccessed') {
             const earnings = user.earnings || 0;
             const referralBonus = user.referralBonus || 0;
+
             const sum = Number(earnings) + Number(referralBonus);
 
             await this.bot.sendMessage(
@@ -782,7 +819,10 @@ export class BotAdminService {
     }
   };
 
-  withdrawalRequest = async (chatId: any): Promise<unknown> => {
+  withdrawalRequest = async (
+    chatId: any,
+    amount?: string,
+  ): Promise<unknown> => {
     function sumArray(arr) {
       return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     }
@@ -800,21 +840,41 @@ export class BotAdminService {
         earnings: user.earnings || 0,
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
-        nodeBonus: user.nodeProviderBonus || 0,
+        nodeProviderBonus: user.nodeProviderBonus || 0,
       };
 
       const sumTotal =
         Number(data.earnings) +
         Number(data.referralBonus) +
-        Number(data.nodeBonus);
-      const withdraw = await requestWithdrawal(data);
+        Number(data.nodeProviderBonus);
+      if (!amount) {
+        await this.bot.sendMessage(
+          chatId,
+          `input amount to withdraw.\n<b>available balance:</b> ${sumTotal} eth`,
+          {
+            reply_markup: {
+              force_reply: true,
+            },
+            parse_mode: 'HTML',
+          },
+        );
+        return;
+      }
+
+      const withdraw = await requestWithdrawal(data, amount);
       const channelId = process.env.CHANNEL_ID;
       if (sumTotal <= 0) {
         return await this.bot.sendMessage(
           chatId,
           `‼️You don't have any earnings or Referral bonus to withdraw`,
         );
+      } else if (parseFloat(amount) > sumTotal) {
+        return await this.bot.sendMessage(
+          chatId,
+          `‼️Insufficient amount to withdraw`,
+        );
       }
+
       await this.bot.sendMessage(channelId, withdraw.message, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: withdraw.keyboard },
@@ -822,11 +882,37 @@ export class BotAdminService {
 
       await this.bot.sendMessage(
         chatId,
-        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth.\n- Node provider Bonus: ${data.nodeBonus} eth\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\nHang on 🔄 while your withdrawal is being processed.`,
+        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth..\n${Number(data.nodeProviderBonus) > 0 ? `- Node provider earnings: ${data.nodeProviderBonus} eth` : ``}\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\n\n<b>Amount requested:</b> <code>${amount}</code> eth.\n\nHang on 🔄 while your withdrawal is being processed.`,
         {
           parse_mode: 'HTML',
         },
       );
+
+      await this.UserModel.updateOne(
+        { chatId: chatId },
+        { withdrawalSession: false },
+      );
+
+      if (user && user.refereeCode) {
+        const nodeOwner = await this.UserModel.findOne({
+          nodeCode: user.refereeCode,
+        });
+
+        // only send withdrawal notification
+        if (nodeOwner) {
+          // const earnings = user.earnings || 0;
+          // const referralBonus = user.referralBonus || 0;
+          // const nodeBonus = user.nodeProviderBonus || 0;
+
+          // const sum =
+          //   Number(earnings) + Number(referralBonus) + Number(nodeBonus);
+
+          await this.sendMessageToOtherBots(
+            nodeOwner.chatId,
+            `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n<b>Amount requested:</b> <code>${amount}</code> eth.`,
+          );
+        }
+      }
       return;
     } catch (error) {
       console.log(error);
@@ -923,7 +1009,7 @@ export class BotAdminService {
       }
       const createNodeForUser = await this.UserModel.findOneAndUpdate(
         { _id: user._id },
-        { hasNode: true, nodeCode: user.referralCode },
+        { hasNode: true, nodeCode: user.referralCode, refereeCode: '' },
         { new: true }, // Ensures the updated document is returned
       );
 

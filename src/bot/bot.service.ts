@@ -53,6 +53,7 @@ export class BotService {
       // regex for transaction hash
       const pattern = /^0x[a-fA-F0-9]{64}$/;
       const urlRegex = /0x[a-fA-F0-9]{64}/;
+      const amountRegex = /^\d+(\.\d+)?$/;
 
       const match = command.match(urlRegex);
 
@@ -110,6 +111,26 @@ export class BotService {
         await this.verifyPayment(msg.chat.id, match[0], msg.from.username);
         console.log('Url hash detected.');
       } else {
+        const user = await this.UserModel.findOne({ chatId: msg.chat.id });
+
+        if (user.withdrawalSession && amountRegex.test(command)) {
+          const amount = command;
+          return await this.withdrawalRequest(msg.chat.id, amount);
+        } else if (user.withdrawalSession) {
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `‼️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
+          );
+        } else if (user.withdrawalSession && command === '/cancel') {
+          await this.UserModel.updateOne(
+            { chatId: msg.chat.id },
+            { withdrawalSession: false },
+          );
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `‼️Withdraw session cancelled`,
+          );
+        }
         switch (command) {
           case '/menu':
             await this.bot.sendChatAction(msg.chat.id, 'typing');
@@ -218,6 +239,10 @@ export class BotService {
 
         case '/withdraw':
           await this.bot.sendChatAction(chatId, 'typing');
+          await this.UserModel.updateOne(
+            { chatId: query.message.chat.id },
+            { withdrawalSession: true },
+          );
           return await this.withdrawalRequest(query.message.chat.id);
 
         case '/withrawalProccessed':
@@ -700,7 +725,10 @@ export class BotService {
     }
   };
 
-  withdrawalRequest = async (chatId: any): Promise<unknown> => {
+  withdrawalRequest = async (
+    chatId: any,
+    amount?: string,
+  ): Promise<unknown> => {
     function sumArray(arr) {
       return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     }
@@ -718,17 +746,41 @@ export class BotService {
         earnings: user.earnings || 0,
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
+        nodeProviderBonus: user.nodeProviderBonus || 0,
       };
 
-      const sumTotal = Number(data.earnings) + Number(data.referralBonus);
-      const withdraw = await requestWithdrawal(data);
+      const sumTotal =
+        Number(data.earnings) +
+        Number(data.referralBonus) +
+        Number(data.nodeProviderBonus);
+      if (!amount) {
+        await this.bot.sendMessage(
+          chatId,
+          `input amount to withdraw.\n<b>available balance:</b> ${sumTotal} eth`,
+          {
+            reply_markup: {
+              force_reply: true,
+            },
+            parse_mode: 'HTML',
+          },
+        );
+        return;
+      }
+
+      const withdraw = await requestWithdrawal(data, amount);
       const channelId = process.env.CHANNEL_ID;
       if (sumTotal <= 0) {
         return await this.bot.sendMessage(
           chatId,
           `‼️You don't have any earnings or Referral bonus to withdraw`,
         );
+      } else if (parseFloat(amount) > sumTotal) {
+        return await this.bot.sendMessage(
+          chatId,
+          `‼️Insufficient amount to withdraw`,
+        );
       }
+
       await this.bot.sendMessage(channelId, withdraw.message, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: withdraw.keyboard },
@@ -736,11 +788,37 @@ export class BotService {
 
       await this.bot.sendMessage(
         chatId,
-        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\nHang on 🔄 while your withdrawal is being processed.`,
+        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth..\n${Number(data.nodeProviderBonus) > 0 ? `- Node provider earnings: ${data.nodeProviderBonus} eth` : ``}\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\n\n<b>Amount requested:</b> <code>${amount}</code> eth.\n\nHang on 🔄 while your withdrawal is being processed.`,
         {
           parse_mode: 'HTML',
         },
       );
+
+      await this.UserModel.updateOne(
+        { chatId: chatId },
+        { withdrawalSession: false },
+      );
+
+      if (user && user.refereeCode) {
+        const nodeOwner = await this.UserModel.findOne({
+          nodeCode: user.refereeCode,
+        });
+
+        // only send withdrawal notification
+        if (nodeOwner) {
+          // const earnings = user.earnings || 0;
+          // const referralBonus = user.referralBonus || 0;
+          // const nodeBonus = user.nodeProviderBonus || 0;
+
+          // const sum =
+          //   Number(earnings) + Number(referralBonus) + Number(nodeBonus);
+
+          await this.botAdminService.sendMessageToOtherBots(
+            nodeOwner.chatId,
+            `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n<b>Amount requested:</b> <code>${amount}</code> eth.`,
+          );
+        }
+      }
       return;
     } catch (error) {
       console.log(error);

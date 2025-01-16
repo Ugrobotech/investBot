@@ -67,6 +67,9 @@ export class User {
 
   @Prop()
   nodeProviderBonus: string;
+
+  @Prop({ default: false })
+  withdrawalSession: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
