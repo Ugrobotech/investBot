@@ -1054,7 +1054,7 @@ export class BotService {
 
   //@Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
 
-  @Cron('0 * * * *', { timeZone: 'Africa/Lagos' }) // Every 1 hour Nigerian Time
+  @Cron('*/10 * * * *', { timeZone: 'Africa/Lagos' }) // Every 10mins Nigerian Time
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
