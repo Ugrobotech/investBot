@@ -75,6 +75,7 @@ export class BotAdminService {
           };
           return await this.bot.sendMessage(msg.chat.id, welcome.message, {
             reply_markup: replyMarkup,
+            parse_mode: 'HTML',
           });
         }
         let refereeCode: string;
