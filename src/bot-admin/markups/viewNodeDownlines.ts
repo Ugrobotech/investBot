@@ -19,7 +19,7 @@ export const viewNodeDownlines = async (data: any) => {
     message:
       allDownlines.length === 0
         ? `@${username} you don't have any Node downlines.\nInvite your friends to earn!`
-        : `@${username}, here are your downlines: 👇\n\n${allDownlines.map((users) => `➡️@${users['userName']} Amount invested: ${sumArray(users['amountsInvested'])} $`).join('\n')}\n\n<b>Node Operator %:</b>${nodeROIpercent}\n<b>Downline earn %:</b>${nodeDownLineROIpercent}\n\n <b>Total Investments:</b> ${totalSum} $`,
+        : `@${username}, here are your downlines: 👇\n\n${allDownlines.map((users) => `➡️@${users['userName']} Amount staked: ${sumArray(users['amountsInvested'])} $`).join('\n')}\n\n<b>Node Operator %:</b>${nodeROIpercent}\n<b>Downline earn %:</b>${nodeDownLineROIpercent}\n\n <b>Total Stakes:</b> ${totalSum} $`,
 
     keyboard: [
       [

@@ -39,11 +39,11 @@ export const showUserTransactionDetails = async (data: any) => {
   const { amount, hash, timestamp, usdAmount } = data;
 
   return {
-    message: `<b>Staking Alert 🚨</b>\n<b>transaction hash:</b> <a href="https://etherscan.io/tx/${hash}">${hash}</a>\n\n<b>Details :</b>\n<b>Amount Invested: </b>${usdAmount} $ (${amount}eth)\n<b>Date: </b>${timestamp}`,
+    message: `<b>Staking Alert 🚨</b>\n<b>transaction hash:</b> <a href="https://etherscan.io/tx/${hash}">${hash}</a>\n\n<b>Details :</b>\n<b>Amount Staked: </b>${usdAmount} $ (${amount}eth)\n<b>Date: </b>${timestamp}`,
     keyboard: [
       [
         {
-          text: 'view Investments',
+          text: 'view Stakes',
           callback_data: JSON.stringify({
             command: '/viewInvestments',
             language: 'english',

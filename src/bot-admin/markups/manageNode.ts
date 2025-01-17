@@ -4,7 +4,7 @@ export const manageNodeMarkup = async () => {
     keyboard: [
       [
         {
-          text: 'Set provider and ROI %',
+          text: 'Set Operator and ROI %',
           callback_data: JSON.stringify({
             command: '/set%',
             language: 'english',

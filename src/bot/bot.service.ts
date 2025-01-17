@@ -119,8 +119,11 @@ export class BotService {
           withdrawalDetails.amount &&
           withdrawalDetails.wallet
         ) {
-          const amount = command;
-          return await this.withdrawalRequest(msg.chat.id, amount);
+          return await this.withdrawalRequest(
+            msg.chat.id,
+            withdrawalDetails.amount,
+            withdrawalDetails.wallet,
+          );
         } else if (user.withdrawalSession && command === '/cancel') {
           console.log('herrrrr');
           await this.UserModel.updateOne(
@@ -165,7 +168,6 @@ export class BotService {
     this.logger.debug(query);
     let command: string;
     let userChatId: string;
-    let userChatIdAmount: string;
 
     function isJSON(str) {
       try {
@@ -180,7 +182,6 @@ export class BotService {
     if (isJSON(query.data)) {
       command = JSON.parse(query.data).command;
       userChatId = JSON.parse(query.data).userChatId;
-      userChatIdAmount = JSON.parse(query.data).userChatIdAmount;
     } else {
       command = query.data;
     }
@@ -255,10 +256,9 @@ export class BotService {
 
         case '/withrawalProccessed':
           await this.bot.sendChatAction(chatId, 'typing');
-          const chatIdAmount = this.parseIdAndAmount(userChatIdAmount);
 
           const user = await this.UserModel.findOne({
-            chatId: chatIdAmount.chatId,
+            chatId: userChatId,
           });
 
           if (!user) {
@@ -269,7 +269,8 @@ export class BotService {
           const currentValue = parseFloat(user.totalWithrawal || '0');
 
           // Increment the value
-          const updatedValue = currentValue + parseFloat(chatIdAmount.amount);
+          const updatedValue =
+            currentValue + parseFloat(user.withdrawalSessionAmount || '0');
 
           // Update the field in the database
           await this.UserModel.findOneAndUpdate(
@@ -361,6 +362,12 @@ export class BotService {
         walletAddressMain: walletMain.address,
         privateKeyMain: walletMain.privateKey,
         mnemonicMain: walletMain.mnemonic,
+        allWallets: [
+          {
+            walletAddress: wallet.address,
+            privateKey: wallet.privateKey,
+          },
+        ],
       });
 
       return await saveUser.save();
@@ -816,7 +823,7 @@ export class BotService {
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
         nodeProviderBonus: user.nodeProviderBonus || 0,
-        totalWithrawn: user.totalWithrawal,
+        totalWithrawn: user.totalWithrawal || 0,
       };
 
       const sumTotal =
@@ -867,7 +874,10 @@ export class BotService {
 
       await this.UserModel.updateOne(
         { chatId: chatId },
-        { withdrawalSession: false },
+        {
+          withdrawalSession: false,
+          withdrawalSessionAmount: amount,
+        },
       );
 
       if (user && user.refereeCode) {
@@ -1147,7 +1157,7 @@ export class BotService {
   };
 
   parseIdAndAmount(input: string): { chatId: string; amount: string } | null {
-    const [chatId, amount] = input.split('&');
+    const [chatId, amount] = input.split('|');
 
     if (chatId && amount) {
       return {
@@ -1171,7 +1181,7 @@ export class BotService {
       };
     }
 
-    const amount = parseFloat(match[1]);
+    const amount = match[1];
     const wallet = match[3];
 
     // Validate Ethereum wallet address without web3

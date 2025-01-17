@@ -8,6 +8,7 @@ export const requestWithdrawal = async (
   const { walletMain, chatId, username } = data;
 
   const state = process.env.ENVIRONMENT;
+  const userChatIdAmount = `${chatId}`;
 
   return {
     message: `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${username}\n\n<b>Amount requested:</b> <code>${amount}</code> $.\n\n- wallet Address: <code>${state === 'NORMAL' ? userWallet : walletMain}</code>\n(tap to copy)`,
@@ -17,7 +18,7 @@ export const requestWithdrawal = async (
           text: '✅ Process',
           callback_data: JSON.stringify({
             command: '/withrawalProccessed',
-            userChatIdAmount: `${chatId}&${amount}`,
+            userChatId: `${userChatIdAmount}`,
           }),
         },
         // {

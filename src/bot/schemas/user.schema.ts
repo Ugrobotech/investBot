@@ -72,6 +72,9 @@ export class User {
   withdrawalSession: boolean;
 
   @Prop()
+  withdrawalSessionAmount: string;
+
+  @Prop()
   allWallets: [];
 
   @Prop()
