@@ -70,6 +70,12 @@ export class User {
 
   @Prop({ default: false })
   withdrawalSession: boolean;
+
+  @Prop()
+  allWallets: [];
+
+  @Prop()
+  totalWithrawal: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

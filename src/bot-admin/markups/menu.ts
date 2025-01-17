@@ -13,30 +13,30 @@ export const menuMarkup = async (hasNode?: boolean) => {
       ],
       [
         {
-          text: 'Invest',
+          text: 'Stake 🏦',
           callback_data: JSON.stringify({
             command: '/invest',
             language: 'english',
           }),
         },
-        {
-          text: 'wallet 💳',
-          callback_data: JSON.stringify({
-            command: '/wallets',
-            language: 'english',
-          }),
-        },
+        // {
+        //   text: 'wallet 💳',
+        //   callback_data: JSON.stringify({
+        //     command: '/wallets',
+        //     language: 'english',
+        //   }),
+        // },
       ],
       [
         {
-          text: 'view Earnings',
+          text: 'view Earnings 📈',
           callback_data: JSON.stringify({
             command: '/viewEarnings',
             language: 'english',
           }),
         },
         {
-          text: 'View Investments',
+          text: 'View stakes 🏦',
           callback_data: JSON.stringify({
             command: '/viewInvestments',
             language: 'english',
@@ -45,7 +45,7 @@ export const menuMarkup = async (hasNode?: boolean) => {
       ],
       [
         {
-          text: 'withdraw earnings',
+          text: 'withdraw earnings ⏬',
           callback_data: JSON.stringify({
             command: '/withdraw',
             language: 'english',
@@ -60,13 +60,10 @@ export const menuMarkup = async (hasNode?: boolean) => {
         },
       ],
       [
-        // {
-        //   text: 'Settings ⚙️',
-        //   callback_data: JSON.stringify({
-        //     command: '/Settings',
-        //     language: 'english',
-        //   }),
-        // },
+        {
+          text: 'Contact support 📞',
+          url: 'https://t.me/AccessNode_Support',
+        },
         {
           text: '❌ Close',
           callback_data: JSON.stringify({

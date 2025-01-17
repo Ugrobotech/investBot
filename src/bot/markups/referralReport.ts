@@ -5,7 +5,7 @@ export const referralReportMarkup = async (data) => {
   const { referralBonus, referralCode } = data;
   const botLink = process.env.BOT_LINK;
   return {
-    message: `Referral System Report 🔊\n\nYour referral link 🔗:\n<code>${botLink}${referralCode}</code>\n\n<b> Referral Bonus:</b>${referralBonus} eth\n\nShare and earn bonus with your friends!`,
+    message: `Referral System Report 🔊\n\nYour referral link 🔗:\n<code>${botLink}${referralCode}</code>\n\n<b> Referral Bonus:</b>${referralBonus} $\n\nShare and earn bonus with your friends!`,
     keyboard: [
       [
         {

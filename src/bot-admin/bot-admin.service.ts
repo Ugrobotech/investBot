@@ -57,10 +57,11 @@ export class BotAdminService {
       // regex for transaction hash
       const pattern = /^0x[a-fA-F0-9]{64}$/;
       const urlRegex = /0x[a-fA-F0-9]{64}/;
-      const amountRegex = /^\d+(\.\d+)?$/;
+      // const amountRegex = /^\d+(\.\d+)?$/;
 
       const match = command.match(urlRegex);
       const ROIs = this.extractAndSumNodePercentages(command);
+      const withdrawalDetails = this.detectAndValidateInput(command);
 
       if (command.startsWith('/start')) {
         const username = `${msg.from.username}`;
@@ -120,14 +121,13 @@ export class BotAdminService {
           chatId: msg.chat.id,
         });
 
-        if (user.withdrawalSession && amountRegex.test(command)) {
+        if (
+          user.withdrawalSession &&
+          withdrawalDetails.amount &&
+          withdrawalDetails.wallet
+        ) {
           const amount = command;
           await this.withdrawalRequest(msg.chat.id, amount);
-        } else if (user.withdrawalSession) {
-          return await this.bot.sendMessage(
-            msg.chat.id,
-            `‼️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
-          );
         } else if (user.withdrawalSession && command === '/cancel') {
           await this.UserModel.updateOne(
             { chatId: msg.chat.id },
@@ -137,11 +137,16 @@ export class BotAdminService {
             msg.chat.id,
             `✅Withdraw session cancelled`,
           );
+        } else if (user.withdrawalSession) {
+          return await this.bot.sendMessage(
+            msg.chat.id,
+            `‼️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
+          );
         } else if (ROIs && !user.withdrawalSession) {
           if (ROIs.sum >= 0.8) {
             return await this.bot.sendMessage(
               msg.chat.id,
-              `⚠️Maximum sum of both provider percentage  and downline ROI percentage is <b>0.7</b>, so when setting your provider and downline ROI percentage let it not exceed 0.7`,
+              `⚠️Maximum sum of both operator  percentage  and downline ROI percentage is <b>0.7</b>, so when setting your operator and downline ROI percentage let it not exceed 0.7`,
               { parse_mode: 'HTML' },
             );
           }
@@ -157,7 +162,7 @@ export class BotAdminService {
           if (setROIs) {
             return await this.bot.sendMessage(
               msg.chat.id,
-              `✅ Provider: ${setROIs.nodeROIpercent}%\n✅ Downline ROI: ${setROIs.nodeDownLineROIpercent}%`,
+              `✅ Operator: ${setROIs.nodeROIpercent}%\n✅ Downline ROI: ${setROIs.nodeDownLineROIpercent}%`,
               { parse_mode: 'HTML' },
             );
           }
@@ -226,7 +231,7 @@ export class BotAdminService {
 
             await this.bot.sendMessage(
               nodeOwner.chatId,
-              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${earnings} eth.\n- Referral Bonus: ${referralBonus} eth\n\n <b>Total:</b> <code>${sum}</code> eth.`,
+              `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n- Earning: ${earnings} $.\n- Referral Bonus: ${referralBonus} $\n\n <b>Total:</b> <code>${sum}</code> $.`,
               {
                 parse_mode: 'HTML',
               },
@@ -243,6 +248,7 @@ export class BotAdminService {
     this.logger.debug(query);
     let command: string;
     let userChatId: string;
+    let userChatIdAmount: string;
 
     function isJSON(str) {
       try {
@@ -257,6 +263,7 @@ export class BotAdminService {
     if (isJSON(query.data)) {
       command = JSON.parse(query.data).command;
       userChatId = JSON.parse(query.data).userChatId;
+      userChatIdAmount = JSON.parse(query.data).userChatIdAmount;
     } else {
       command = query.data;
     }
@@ -330,19 +337,32 @@ export class BotAdminService {
 
         case '/withrawalProccessed':
           await this.bot.sendChatAction(chatId, 'typing');
-          await this.UserModel.updateOne(
-            { chatId: userChatId },
-            {
-              $unset: {
-                earnings: '',
-                referralBonus: '',
-                nodeProviderBonus: '',
-              },
-            },
+          const chatIdAmount = this.parseIdAndAmount(userChatIdAmount);
+
+          const user = await this.UserModel.findOne({
+            chatId: chatIdAmount.chatId,
+          });
+
+          if (!user) {
+            throw new Error('User not found');
+          }
+
+          // Parse the string field to a number
+          const currentValue = parseFloat(user.totalWithrawal || '0');
+
+          // Increment the value
+          const updatedValue = currentValue + parseFloat(chatIdAmount.amount);
+
+          // Update the field in the database
+          await this.UserModel.findOneAndUpdate(
+            { chatId: user.chatId },
+            { totalWithrawal: updatedValue.toString() }, // Save it back as a string
+            { new: true }, // Return the updated document
           );
+
           await this.bot.sendMessage(
-            userChatId,
-            '✅ Your withdrawal request has been processed! You can check your balance now.',
+            user.chatId,
+            '✅ Your withdrawal request has been processed!.',
           );
           return await this.bot.sendMessage(
             query.message.chat.id,
@@ -471,19 +491,42 @@ export class BotAdminService {
 
   showInvestMarkdown = async (chatId: any) => {
     try {
+      const wallet = await multichainWallet.createWallet({
+        network: 'ethereum',
+      });
       const user = await this.UserModel.findOne({ chatId: chatId });
       if (!user) {
         return this.bot.sendMessage(chatId, 'User detail does not exist');
       }
-      const investMarkup = await investDetailsMarkup(user.walletAddress);
-      if (investMarkup) {
-        const replyMarkup = {
-          inline_keyboard: investMarkup.keyboard,
-        };
-        await this.bot.sendMessage(chatId, investMarkup.message, {
-          parse_mode: 'HTML',
-          reply_markup: replyMarkup,
-        });
+      const updateUserWallet = await this.UserModel.findOneAndUpdate(
+        {
+          chatId: user.chatId,
+        },
+        {
+          walletAddress: wallet.address,
+          privateKey: wallet.privateKey,
+          $push: {
+            allWallets: {
+              walletAddress: wallet.address,
+              privateKey: wallet.privateKey,
+            },
+          },
+        },
+        { new: true },
+      );
+      if (updateUserWallet) {
+        const investMarkup = await investDetailsMarkup(
+          updateUserWallet.walletAddress,
+        );
+        if (investMarkup) {
+          const replyMarkup = {
+            inline_keyboard: investMarkup.keyboard,
+          };
+          await this.bot.sendMessage(chatId, investMarkup.message, {
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+          });
+        }
       }
     } catch (error) {
       console.log(error);
@@ -528,7 +571,20 @@ export class BotAdminService {
 
   getTransactionReceipt = async (hash: string, chatId: any, username: any) => {
     const referralBonusPercentage = process.env.REFERRAL_PERCENT;
+    const defaultRate = process.env.ETH_RATE;
+    let ethUSDprice;
     try {
+      try {
+        const rates = await this.httpService.axiosRef.get(
+          `https://api.coinbase.com/v2/exchange-rates?currency=ETH`,
+        );
+        ethUSDprice = parseFloat(rates.data.data.rates['USDT']);
+        console.log('this is eth rate :', ethUSDprice);
+      } catch (error) {
+        ethUSDprice = parseFloat(defaultRate);
+        console.log(error);
+      }
+
       const user = await this.UserModel.findOne({ chatId: chatId });
 
       // const hashExist = await this.UserModel.find({
@@ -567,12 +623,17 @@ export class BotAdminService {
         // Convert Wei to Ether manually
         const ethValue = parseFloat(response.data.value) / Math.pow(10, 18);
         const time = this.formatDateTime(response.data.block_timestamp);
+        const usdValue = ethValue * ethUSDprice;
 
         const updatedUser = await this.UserModel.findOneAndUpdate(
           { chatId },
           {
             $push: {
-              amountsInvested: { amount: ethValue, timestamp: time },
+              amountsInvested: {
+                amount: ethValue,
+                usdAmount: usdValue,
+                timestamp: time,
+              },
               paymentHashes: hash,
             },
           },
@@ -586,7 +647,8 @@ export class BotAdminService {
         if (referee) {
           const currentBonus = parseFloat(referee.referralBonus || '0');
           const newBonus =
-            (ethValue * parseFloat(referralBonusPercentage)) / 100;
+            ((usdValue || ethValue) * parseFloat(referralBonusPercentage)) /
+            100;
 
           const updatedBonus = currentBonus + newBonus;
 
@@ -603,7 +665,7 @@ export class BotAdminService {
           );
 
           if (updatedReferee && !updatedReferee.hasNode) {
-            const message = `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonue from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`;
+            const message = `<b>🔔 Referral Bonus Alert</b>\n\nYou have been rewarded ${newBonus} $ referral bonus from @${user.userName} stake.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} $`;
 
             await this.botService.sendMessageToOtherBots(
               updatedReferee.chatId,
@@ -612,7 +674,7 @@ export class BotAdminService {
           } else if (updatedReferee) {
             await this.bot.sendMessage(
               updatedReferee.chatId,
-              `<b>🔔 Referral Bonus Alert</b>\n\nYou have earned ${newBonus} eth referral bonus from @${user.userName} investment.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} eth`,
+              `<b>🔔 Referral Bonus Alert</b>\n\nYou have been rewarded ${newBonus} $ referral bonus from @${user.userName} stake.\n<b>Total referral bonus:</b> ${updatedReferee.referralBonus} $`,
               { parse_mode: 'HTML' },
             );
           }
@@ -621,6 +683,7 @@ export class BotAdminService {
         return {
           status: 'confirmed',
           amount: ethValue,
+          usdAmount: usdValue,
           sender: response.data.from_address,
           reciever: response.data.to_address,
           timestamp: time,
@@ -693,9 +756,10 @@ export class BotAdminService {
       console.error('Error sending investment details:', error);
     }
   };
+
   viewEarnings = async (chatId: any) => {
     function sumArray(arr) {
-      return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      return arr.reduce((sum, item) => sum + Number(item.usdAmount || 0), 0);
     }
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
@@ -708,6 +772,7 @@ export class BotAdminService {
         nodeBonus: user.nodeProviderBonus || 0,
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
+        totalWithrawal: user.totalWithrawal || 0,
       };
 
       console.log('data :', data);
@@ -727,8 +792,11 @@ export class BotAdminService {
   };
 
   viewInvestments = async (chatId: any) => {
-    function sumArray(arr) {
+    function sumEthArray(arr) {
       return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
+    function sumUsdArray(arr) {
+      return arr.reduce((sum, item) => sum + Number(item.usdAmount || 0), 0);
     }
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
@@ -737,7 +805,8 @@ export class BotAdminService {
         return this.bot.sendMessage(chatId, 'User detail does not exist');
       }
       const data = {
-        totalInvested: sumArray(user.amountsInvested) || 0,
+        totalInvested: sumEthArray(user.amountsInvested) || 0,
+        totalInvestedUSD: sumUsdArray(user.amountsInvested) || 0,
         investments: user.amountsInvested,
       };
       const viewInvestment = await viewInvestmentsDetails(data);
@@ -826,9 +895,10 @@ export class BotAdminService {
   withdrawalRequest = async (
     chatId: any,
     amount?: string,
+    userWallet?: string,
   ): Promise<unknown> => {
     function sumArray(arr) {
-      return arr.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      return arr.reduce((sum, item) => sum + Number(item.usdAmount || 0), 0);
     }
     try {
       const user = await this.UserModel.findOne({ chatId: chatId });
@@ -845,16 +915,17 @@ export class BotAdminService {
         totalInvested: sumArray(user.amountsInvested) || 0,
         referralBonus: user.referralBonus || 0,
         nodeProviderBonus: user.nodeProviderBonus || 0,
+        totalWithrawn: user.totalWithrawal,
       };
-
       const sumTotal =
         Number(data.earnings) +
         Number(data.referralBonus) +
-        Number(data.nodeProviderBonus);
+        Number(data.nodeProviderBonus) -
+        Number(data.totalWithrawn);
       if (!amount) {
         await this.bot.sendMessage(
           chatId,
-          `input amount to withdraw.\n<b>available balance:</b> ${sumTotal} eth`,
+          `input amount to withdraw and wallet address, expected format => amount address (e.g 50 0xB506a70CE81A4037D7D030f3ACC1ba60b52e7b72).\n<b>available balance:</b> ${sumTotal} $`,
           {
             reply_markup: {
               force_reply: true,
@@ -865,7 +936,7 @@ export class BotAdminService {
         return;
       }
 
-      const withdraw = await requestWithdrawal(data, amount);
+      const withdraw = await requestWithdrawal(data, amount, userWallet);
       const channelId = process.env.CHANNEL_ID;
       if (sumTotal <= 0) {
         return await this.bot.sendMessage(
@@ -886,7 +957,7 @@ export class BotAdminService {
 
       await this.bot.sendMessage(
         chatId,
-        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n- Earning: ${data.earnings} eth.\n- Referral Bonus: ${data.referralBonus} eth..\n${Number(data.nodeProviderBonus) > 0 ? `- Node provider earnings: ${data.nodeProviderBonus} eth` : ``}\n\n <b>Total:</b> <code>${sumTotal}</code> eth\n\n\n<b>Amount requested:</b> <code>${amount}</code> eth.\n\nHang on 🔄 while your withdrawal is being processed.`,
+        `<b>Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${data.username}\n\n\n<b>Amount requested:</b> <code>${amount}</code> $.\n\nHang on 🔄 while your withdrawal is being processed.`,
         {
           parse_mode: 'HTML',
         },
@@ -911,9 +982,9 @@ export class BotAdminService {
           // const sum =
           //   Number(earnings) + Number(referralBonus) + Number(nodeBonus);
 
-          await this.sendMessageToOtherBots(
+          await this.botService.sendMessageToOtherBots(
             nodeOwner.chatId,
-            `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n<b>Amount requested:</b> <code>${amount}</code> eth.`,
+            `<b>Downline Withdrawal Request 🔔</b>\n\n<b>Details :</b>\n- User: ${user.userName}\n<b>Amount requested:</b> <code>${amount}</code> $.`,
           );
         }
       }
@@ -1066,7 +1137,7 @@ export class BotAdminService {
     try {
       const promptId = await this.bot.sendMessage(
         chatId,
-        'Input the provider % and downline ROI % eg: 0.2 0.5',
+        'Input the node operator % and downline ROI % eg: 0.2 0.5',
         {
           reply_markup: {
             force_reply: true,
@@ -1093,7 +1164,7 @@ export class BotAdminService {
       if (resetROIs) {
         return await this.bot.sendMessage(
           chatId,
-          `✅ Default provider: ${resetROIs.nodeROIpercent}%\n✅ Default downline ROI: ${resetROIs.nodeDownLineROIpercent}%`,
+          `✅ Default Operator: ${resetROIs.nodeROIpercent}%\n✅ Default downline ROI: ${resetROIs.nodeDownLineROIpercent}%`,
           { parse_mode: 'HTML' },
         );
       }
@@ -1273,5 +1344,48 @@ export class BotAdminService {
 
     // Return null if no valid input is found
     return null;
+  };
+
+  parseIdAndAmount(input: string): { chatId: string; amount: string } | null {
+    const [chatId, amount] = input.split('&');
+
+    if (chatId && amount) {
+      return {
+        chatId: chatId.trim(),
+        amount: amount.trim(),
+      };
+    }
+
+    return null; // Return null if the input format is incorrect
+  }
+
+  detectAndValidateInput = (input: string) => {
+    // Regular expression to match the format "amount walletAddress"
+    const regex = /^(\d+(\.\d+)?)\s+(0x[a-fA-F0-9]{40})$/;
+
+    const match = input.match(regex);
+
+    if (!match) {
+      return {
+        error: "Invalid input format. Expected format: 'amount walletAddress'",
+      };
+    }
+
+    const amount = parseFloat(match[1]);
+    const wallet = match[3];
+
+    // Validate Ethereum wallet address without web3
+    if (!this.isValidEthereumAddress(wallet)) {
+      return { error: 'Invalid Ethereum wallet address.' };
+    }
+
+    // Return parsed data
+    return { amount, wallet };
+  };
+
+  // Simple Ethereum address validation function
+  isValidEthereumAddress = (address: string) => {
+    // Check if the address starts with "0x" and has 40 hex characters after it
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
   };
 }

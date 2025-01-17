@@ -1,11 +1,11 @@
 export const viewInvestmentsDetails = async (data: any) => {
-  const { investments, totalInvested } = data;
+  const { investments, totalInvestedUSD } = data;
 
   return {
     message:
       investments.length === 0
-        ? `You don't have any investment.\n Invest to start earning!`
-        : `<b>INVESTMENTS :</b>\n\nTotal : ${totalInvested} eth.\n\n${investments.map((investment) => `➡️ ${investment['amount']} eth\n date: ${investment['timestamp']}`).join('\n\n')}\n\n ⚠️ Capital investment is available for withdrawal after 365 days of investment. `,
+        ? `You don't have any stake.\n Stake to start earning!`
+        : `<b>STAKES :</b>\n\nTotal :${totalInvestedUSD} $\n\n${investments.map((investment) => `➡️ ${investment['usdAmount']} $\n date: ${investment['timestamp']}`).join('\n\n')}\n\n ⚠️ Capital staked is available for withdrawal after 365 days of staking. `,
     keyboard: [
       [
         {
