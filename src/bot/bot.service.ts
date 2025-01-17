@@ -99,6 +99,7 @@ export class BotService {
           };
           await this.bot.sendMessage(msg.chat.id, welcome.message, {
             reply_markup: replyMarkup,
+            parse_mode: 'HTML',
           });
         } else {
           await this.bot.sendMessage(
