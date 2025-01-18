@@ -139,7 +139,7 @@ export class BotService {
         } else if (user.withdrawalSession) {
           return await this.bot.sendMessage(
             msg.chat.id,
-            `‼️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
+            `☑️You have an ongoing withdrawal session, type /cancel, to end session or enter the amount you want to withdraw to continue`,
           );
         }
         switch (command) {
