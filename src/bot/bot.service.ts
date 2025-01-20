@@ -499,17 +499,17 @@ export class BotService {
 
       const user = await this.UserModel.findOne({ chatId: chatId });
 
-      //   const hashExist = await this.UserModel.find({
-      //     paymentHashes: { $in: [hash] },
-      //   });
+      const hashExist = await this.UserModel.find({
+        paymentHashes: { $in: [hash] },
+      });
 
-      //   if (hashExist.length > 0) {
-      //     await this.bot.sendMessage(
-      //       chatId,
-      //       `‼️ This transaction already exist in the system‼️`,
-      //     );
-      //     return;
-      //   }
+      if (hashExist.length > 0) {
+        await this.bot.sendMessage(
+          chatId,
+          `‼️ This transaction already exist in the system‼️`,
+        );
+        return;
+      }
 
       const body = JSON.stringify({
         method: 'eth_getTransactionReceipt',
@@ -526,7 +526,11 @@ export class BotService {
       //    receipt.data.result.to.toLowerCase() ===
       //      user.walletAddress.toLowerCase();
 
-      if (receipt.data.result.status === '0x1') {
+      if (
+        receipt.data.result.status === '0x1' &&
+        receipt.data.result.to.toLowerCase() ===
+          user.walletAddress.toLowerCase()
+      ) {
         const moralisURL = `https://deep-index.moralis.io/api/v2.2/transaction/${hash}/verbose?chain=eth`;
 
         const response = await this.httpService.axiosRef.get(moralisURL, {
@@ -1137,7 +1141,8 @@ export class BotService {
 
   //@Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
 
-  @Cron('*/10 * * * *', { timeZone: 'Africa/Lagos' }) // Every 10mins Nigerian Time
+  // @Cron('*/10 * * * *', { timeZone: 'Africa/Lagos' }) // Every 10mins Nigerian Time
+  @Cron('0 10 * * 1-6', { timeZone: 'Africa/Lagos' })
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
