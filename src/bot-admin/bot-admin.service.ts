@@ -362,15 +362,33 @@ export class BotAdminService {
             { totalWithrawal: updatedValue.toString() }, // Save it back as a string
             { new: true }, // Return the updated document
           );
-
-          await this.bot.sendMessage(
-            user.chatId,
-            '✅ Your withdrawal request has been processed!.',
+          const pnlImage: any = await this.httpService.axiosRef.post(
+            'https://pnl-image-generator.onrender.com/pnl',
+            { amount: `${user.withdrawalSessionAmount}` },
           );
-          return await this.bot.sendMessage(
-            query.message.chat.id,
-            '✅withdrawal request has been processed!',
-          );
+          if (pnlImage.data.image) {
+            await this.bot.sendMessage(
+              user.chatId,
+              '✅ Your withdrawal request has been processed!.',
+            );
+            await this.bot.sendPhoto(
+              user.chatId,
+              Buffer.from(pnlImage.data.image),
+            );
+            return await this.bot.sendMessage(
+              query.message.chat.id,
+              '✅withdrawal request has been processed!',
+            );
+          } else {
+            await this.bot.sendMessage(
+              user.chatId,
+              '✅ Your withdrawal request has been processed!.',
+            );
+            return await this.bot.sendMessage(
+              query.message.chat.id,
+              '✅withdrawal request has been processed!',
+            );
+          }
 
         case '/referrals':
           await this.bot.sendChatAction(query.message.chat.id, 'typing');
@@ -1073,8 +1091,19 @@ export class BotAdminService {
 
   sendMessageToOtherBots = async (chatId: any, message: string) => {
     try {
-      await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+      return await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+      });
     } catch (error) {
+      console.log(error);
+    }
+  };
+
+  sendPhotoMessageToOtherBots = async (chatId: any, image: any) => {
+    try {
+      return await this.bot.sendPhoto(chatId, image);
+    } catch (error) {
+      console.trace();
       console.log(error);
     }
   };

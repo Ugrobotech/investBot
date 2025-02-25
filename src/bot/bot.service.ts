@@ -281,14 +281,33 @@ export class BotService {
             { new: true }, // Return the updated document
           );
 
-          await this.bot.sendMessage(
-            user.chatId,
-            '✅ Your withdrawal request has been processed!.',
+          const pnlImage: any = await this.httpService.axiosRef.post(
+            'https://pnl-image-generator.onrender.com/pnl',
+            { amount: `${user.withdrawalSessionAmount}` },
           );
-          return await this.bot.sendMessage(
-            query.message.chat.id,
-            '✅withdrawal request has been processed!',
-          );
+          if (pnlImage.data.image) {
+            await this.bot.sendMessage(
+              user.chatId,
+              '✅ Your withdrawal request has been processed!.',
+            );
+            await this.bot.sendPhoto(
+              user.chatId,
+              Buffer.from(pnlImage.data.image),
+            );
+            return await this.bot.sendMessage(
+              query.message.chat.id,
+              '✅withdrawal request has been processed!',
+            );
+          } else {
+            await this.bot.sendMessage(
+              user.chatId,
+              '✅ Your withdrawal request has been processed!.',
+            );
+            return await this.bot.sendMessage(
+              query.message.chat.id,
+              '✅withdrawal request has been processed!',
+            );
+          }
 
         case '/referrals':
           await this.bot.sendChatAction(query.message.chat.id, 'typing');
@@ -1031,15 +1050,37 @@ export class BotService {
         if (updatedUser && parseFloat(updatedUser.earnings) > 0) {
           const message = `<b>🔔 Earn Alert</b>\n\nYou have earned ${earnings} $, from your Stakings.\n<b>Total Earnings:</b> ${updatedUser.earnings} $`;
           try {
+            // const pnlImage: any = await this.httpService.axiosRef.post(
+            //   'https://pnl-image-generator.onrender.com/pnl',
+            //   { amount: `${earnings}` },
+            // );
             if (updatedUser.hasNode) {
               await this.botAdminService.sendMessageToOtherBots(
                 updatedUser.chatId,
                 message,
               );
+              // console.log(Buffer.from(pnlImage.data.image));
+
+              // if (!Buffer.isBuffer(Buffer.from(pnlImage.data.image))) {
+              //   throw new Error('Invalid image buffer');
+              // }
+              // if (pnlImage.data.image) {
+              //   await this.botAdminService.sendPhotoMessageToOtherBots(
+              //     updatedUser.chatId,
+              //     Buffer.from(pnlImage.data.image),
+              //   );
+              // }
             } else {
               await this.bot.sendMessage(updatedUser.chatId, message, {
                 parse_mode: 'HTML',
               });
+
+              // if (pnlImage.data.image) {
+              //   await this.bot.sendPhoto(
+              //     updatedUser.chatId,
+              //     Buffer.from(pnlImage.data.image),
+              //   );
+              // }
             }
           } catch (error) {
             console.log(error);
@@ -1097,6 +1138,19 @@ export class BotService {
               updateNodeOwner.chatId,
               message,
             );
+
+            // const pnlImage: any = await this.httpService.axiosRef.post(
+            //   'https://pnl-image-generator.onrender.com/pnl',
+            //   { amount: `${nodeProviderBonus}` },
+            // );
+            // if (pnlImage.data.image) {
+            //   await this.botAdminService.sendPhotoMessageToOtherBots(
+            //     updateNodeOwner.chatId,
+            //     Buffer.from(pnlImage.data.image),
+            //   );
+            // }
+
+            return;
           } catch (error) {
             console.log(error);
           }
@@ -1142,7 +1196,8 @@ export class BotService {
   //@Cron('0 0 * * *', { timeZone: 'Africa/Lagos' }) // 12:00 AM Nigerian Time
 
   // @Cron('*/10 * * * *', { timeZone: 'Africa/Lagos' }) // Every 10mins Nigerian Time
-  @Cron('0 10 * * 1-6', { timeZone: 'Africa/Lagos' })
+  // @Cron('0 10 * * 1-6', { timeZone: 'Africa/Lagos' })
+  @Cron('*/2 * * * *') // Runs every 2 minutes
   async handleCron(): Promise<void> {
     console.log('running cron');
     await this.calculateEarning();
